@@ -40,8 +40,8 @@ pub fn generate_lissajous_fill(
 
     let mut lines = Vec::new();
 
-    // Generate multiple nested Lissajous curves
-    let num_curves = (scale_x.min(scale_y) / spacing).ceil() as usize;
+    // Generate multiple nested Lissajous curves (capped for performance)
+    let num_curves = ((scale_x.min(scale_y) / spacing).ceil() as usize).min(8);
 
     // Classic Lissajous ratios that create interesting patterns
     let ratios: [(f64, f64); 4] = [
@@ -89,7 +89,7 @@ fn generate_single_lissajous(
     // Calculate period - curve repeats when both sin functions complete
     // LCM of periods, but we'll just do enough cycles
     let max_t = 2.0 * PI * freq_a.max(freq_b);
-    let steps = (max_t * 100.0) as usize;
+    let steps = ((max_t * 30.0) as usize).min(500);  // Cap steps for performance
     let dt = max_t / steps as f64;
 
     let mut prev_point: Option<(f64, f64)> = None;

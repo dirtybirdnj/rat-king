@@ -53,8 +53,8 @@ pub fn generate_rose_fill(
 
     let mut lines = Vec::new();
 
-    // Generate multiple nested rose curves
-    let num_curves = (max_radius / spacing).ceil() as usize;
+    // Generate multiple nested rose curves (capped for performance)
+    let num_curves = ((max_radius / spacing).ceil() as usize).min(10);
 
     for curve_idx in 1..=num_curves {
         let radius = (curve_idx as f64 / num_curves as f64) * max_radius;
@@ -87,7 +87,7 @@ fn generate_single_rose(
     // For k integer, curve closes at θ = π (k odd) or θ = 2π (k even)
     // For safety, always do full 2π
     let max_theta = 2.0 * PI;
-    let steps = (max_theta * 100.0) as usize;
+    let steps = ((max_theta * 50.0) as usize).min(400);  // Cap for performance
     let dtheta = max_theta / steps as f64;
 
     let mut prev_point: Option<(f64, f64)> = None;

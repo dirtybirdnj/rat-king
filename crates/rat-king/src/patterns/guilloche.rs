@@ -36,8 +36,8 @@ pub fn generate_guilloche_fill(
 
     let mut lines = Vec::new();
 
-    // Generate multiple concentric guilloche rings
-    let num_rings = (scale / spacing).ceil() as usize;
+    // Generate multiple concentric guilloche rings (capped for performance)
+    let num_rings = ((scale / spacing).ceil() as usize).min(5);
 
     for ring in 1..=num_rings {
         let ring_scale = (ring as f64 / num_rings as f64) * scale;
@@ -93,7 +93,7 @@ fn generate_hypotrochoid(
     };
 
     let max_t = 2.0 * PI * rotations as f64;
-    let steps = (max_t * 50.0) as usize; // High resolution
+    let steps = ((max_t * 30.0) as usize).min(1000);  // Cap for performance
     let dt = max_t / steps as f64;
 
     let diff = big_r - small_r;

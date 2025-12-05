@@ -42,9 +42,9 @@ use rat_king::{
     },
 };
 
-// Image rendering constants - high res for crisp terminal display
-const IMAGE_WIDTH: u32 = 3840;
-const IMAGE_HEIGHT: u32 = 2880;
+// Image rendering constants - wide aspect ratio for terminal display
+const IMAGE_WIDTH: u32 = 4800;
+const IMAGE_HEIGHT: u32 = 2700;
 const STROKE_WIDTH: f64 = 2.0;
 
 /// Render pattern lines and polygon outlines to an image using resvg
@@ -172,6 +172,8 @@ struct App {
     svg_path: String,
     /// Is pattern generation in progress?
     is_loading: bool,
+    /// Flag to regenerate after current generation completes
+    needs_regenerate: bool,
     /// Channel to receive pattern results
     result_rx: Receiver<PatternResult>,
     /// Channel to send pattern generation requests
@@ -242,6 +244,7 @@ impl App {
             setting_focus: 0,
             svg_path: svg_path.to_string(),
             is_loading: false,
+            needs_regenerate: false,
             result_rx,
             result_tx,
             spinner_frame: 0,
@@ -262,6 +265,13 @@ impl App {
     }
 
     fn regenerate_pattern(&mut self) {
+        // Skip if already loading - mark for regeneration after completion
+        if self.is_loading {
+            self.needs_regenerate = true;
+            return;
+        }
+
+        self.needs_regenerate = false;
         let pattern = self.selected_pattern();
         let spacing = self.spacing;
         let angle = self.angle;
@@ -285,12 +295,22 @@ impl App {
     }
 
     fn check_pattern_result(&mut self) {
-        // Non-blocking check for completed pattern generation
-        if let Ok(result) = self.result_rx.try_recv() {
+        // Drain all pending results, keep only the latest
+        let mut latest: Option<PatternResult> = None;
+        while let Ok(result) = self.result_rx.try_recv() {
+            latest = Some(result);
+        }
+
+        if let Some(result) = latest {
             self.lines = result.lines;
             self.gen_time_ms = result.gen_time_ms;
             self.is_loading = false;
             self.needs_image_update = true;
+
+            // If user changed settings while we were generating, regenerate now
+            if self.needs_regenerate {
+                self.regenerate_pattern();
+            }
         }
     }
 
@@ -383,6 +403,10 @@ fn main() {
             }
             "patterns" => {
                 cmd_patterns();
+                return;
+            }
+            "harness" => {
+                cmd_harness(&args[2..]);
                 return;
             }
             "help" | "--help" | "-h" => {
@@ -544,10 +568,19 @@ fn ui(frame: &mut Frame, app: &mut App) {
     let top_layout = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Length(25),
+            Constraint::Length(22),
             Constraint::Min(40),
         ])
         .split(main_layout[0]);
+
+    // Split left sidebar into patterns list and stats
+    let sidebar_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Min(10),
+            Constraint::Length(8),
+        ])
+        .split(top_layout[0]);
 
     // Pattern list
     let items: Vec<ListItem> = app.patterns
@@ -566,16 +599,33 @@ fn ui(frame: &mut Frame, app: &mut App) {
             .add_modifier(Modifier::BOLD))
         .highlight_symbol("► ");
 
-    frame.render_stateful_widget(list, top_layout[0], &mut app.pattern_state.clone());
+    frame.render_stateful_widget(list, sidebar_layout[0], &mut app.pattern_state.clone());
+
+    // Stats panel
+    let stats_text = format!(
+        "Polygons: {}\nLines: {}\nGen: {:.1}ms\nZoom: {:.0}%",
+        app.polygons.len(),
+        app.lines.len(),
+        app.gen_time_ms,
+        app.zoom * 100.0
+    );
+    let stats = Paragraph::new(stats_text)
+        .block(Block::default()
+            .title(" Stats ")
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Magenta)))
+        .style(Style::default().fg(Color::White));
+
+    frame.render_widget(stats, sidebar_layout[1]);
 
     // Spinner animation frames
     let spinner_chars = ['|', '/', '-', '\\', '|', '/', '-', '\\'];
     let spinner = spinner_chars[app.spinner_frame % spinner_chars.len()];
 
     let image_title = if app.is_loading {
-        format!(" {} [{}] Generating... ", app.svg_path, spinner)
+        format!(" [{}] Generating... ", spinner)
     } else {
-        format!(" {} - {} lines ({:.1}ms) ", app.svg_path, app.lines.len(), app.gen_time_ms)
+        format!(" {} ", app.svg_path)
     };
 
     let border_color = if app.is_loading { Color::Yellow } else { Color::Green };
@@ -641,13 +691,8 @@ fn ui(frame: &mut Frame, app: &mut App) {
 
     frame.render_widget(angle_text, settings_layout[1]);
 
-    // Help - show zoom level if zoomed
-    let zoom_info = if app.zoom != 1.0 {
-        format!(" {:.0}%", app.zoom * 100.0)
-    } else {
-        String::new()
-    };
-    let help = Paragraph::new(format!("↑↓ pattern  ←→ adjust\n+/- zoom  WASD pan{}\nTab switch  0 reset  q quit", zoom_info))
+    // Help
+    let help = Paragraph::new("↑↓ pattern  ←→ adjust\n+/- zoom  WASD pan\nTab switch  0 reset  q quit")
         .style(Style::default().fg(Color::DarkGray))
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::ALL));
@@ -664,7 +709,14 @@ fn print_usage(prog: &str) {
     eprintln!("  {} [svg_file]                      Launch TUI", prog);
     eprintln!("  {} fill <svg> -p <pattern> [-o out.svg]", prog);
     eprintln!("  {} benchmark <svg> [-p <pattern>]", prog);
+    eprintln!("  {} harness [svg] [-p pattern1,pattern2,...]", prog);
     eprintln!("  {} patterns", prog);
+    eprintln!();
+    eprintln!("Harness Options:");
+    eprintln!("  -p, --patterns   Comma-separated list of patterns (default: all)");
+    eprintln!("  -s, --spacing    Spacing value (default: 2.5)");
+    eprintln!("  -a, --angle      Angle value (default: 45)");
+    eprintln!("  --json           Output results as JSON");
     eprintln!();
     eprintln!("TUI Controls:");
     eprintln!("  ↑/↓ or j/k    Select pattern");
@@ -831,6 +883,214 @@ fn cmd_benchmark(args: &[String]) {
     println!("  Time (ms): {:.2}", elapsed.as_secs_f64() * 1000.0);
     println!("  Avg per polygon: {:.3}ms", elapsed.as_secs_f64() * 1000.0 / polygons.len() as f64);
     println!("═══════════════════════════════════════════════");
+}
+
+/// Result from running a single pattern in the harness
+#[derive(Debug)]
+struct HarnessResult {
+    pattern: String,
+    lines: usize,
+    time_ms: f64,
+    status: &'static str,
+}
+
+fn cmd_harness(args: &[String]) {
+    let mut svg_path: Option<&str> = None;
+    let mut pattern_filter: Option<Vec<&str>> = None;
+    let mut spacing = 2.5;
+    let mut angle = 45.0;
+    let mut json_output = false;
+
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "-p" | "--patterns" => {
+                i += 1;
+                if i < args.len() {
+                    pattern_filter = Some(args[i].split(',').collect());
+                }
+            }
+            "-s" | "--spacing" => {
+                i += 1;
+                if i < args.len() {
+                    spacing = args[i].parse().unwrap_or(2.5);
+                }
+            }
+            "-a" | "--angle" => {
+                i += 1;
+                if i < args.len() {
+                    angle = args[i].parse().unwrap_or(45.0);
+                }
+            }
+            "--json" => {
+                json_output = true;
+            }
+            path => {
+                if svg_path.is_none() && !path.starts_with('-') {
+                    svg_path = Some(path);
+                }
+            }
+        }
+        i += 1;
+    }
+
+    // Default to essex.svg if no file provided
+    let svg_path = svg_path.unwrap_or_else(|| {
+        let candidates = [
+            "test_assets/essex.svg",
+            "../test_assets/essex.svg",
+            "essex.svg",
+        ];
+        for candidate in &candidates {
+            if std::path::Path::new(candidate).exists() {
+                return *candidate;
+            }
+        }
+        eprintln!("Error: No SVG file specified and default essex.svg not found");
+        eprintln!("Usage: rat-king harness [svg_file] [-p pattern1,pattern2]");
+        std::process::exit(1);
+    });
+
+    // Load SVG
+    let svg_content = match fs::read_to_string(svg_path) {
+        Ok(content) => content,
+        Err(e) => {
+            eprintln!("Error reading {}: {}", svg_path, e);
+            std::process::exit(1);
+        }
+    };
+
+    let polygons = match extract_polygons_from_svg(&svg_content) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("Error parsing SVG: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    // Determine which patterns to run
+    let patterns_to_run: Vec<Pattern> = if let Some(filter) = &pattern_filter {
+        filter.iter()
+            .filter_map(|name| Pattern::from_name(name))
+            .collect()
+    } else {
+        Pattern::all().to_vec()
+    };
+
+    if patterns_to_run.is_empty() {
+        eprintln!("Error: No valid patterns specified");
+        std::process::exit(1);
+    }
+
+    if !json_output {
+        eprintln!("rat-king harness");
+        eprintln!("================");
+        eprintln!("SVG: {} ({} polygons)", svg_path, polygons.len());
+        eprintln!("Spacing: {}, Angle: {}°", spacing, angle);
+        eprintln!("Patterns: {}\n", patterns_to_run.len());
+    }
+
+    let mut results: Vec<HarnessResult> = Vec::new();
+    let mut passed = 0;
+    let mut failed = 0;
+
+    for pattern in &patterns_to_run {
+        if !json_output {
+            eprint!("  {:12} ... ", pattern.name());
+        }
+
+        let start = Instant::now();
+        let mut total_lines = 0;
+        let mut error: Option<String> = None;
+
+        // Use catch_unwind to handle panics
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let mut lines = 0;
+            for polygon in &polygons {
+                let poly_lines = generate_pattern(*pattern, polygon, spacing, angle);
+                lines += poly_lines.len();
+            }
+            lines
+        }));
+
+        let elapsed = start.elapsed();
+        let time_ms = elapsed.as_secs_f64() * 1000.0;
+
+        let (status, lines) = match result {
+            Ok(lines) => {
+                total_lines = lines;
+                passed += 1;
+                ("OK", lines)
+            }
+            Err(e) => {
+                failed += 1;
+                error = Some(format!("{:?}", e));
+                ("FAIL", 0)
+            }
+        };
+
+        results.push(HarnessResult {
+            pattern: pattern.name().to_string(),
+            lines,
+            time_ms,
+            status,
+        });
+
+        if !json_output {
+            if status == "OK" {
+                eprintln!("{:>8} lines in {:>8.1}ms", total_lines, time_ms);
+            } else {
+                eprintln!("FAILED: {:?}", error);
+            }
+        }
+    }
+
+    // Output results
+    if json_output {
+        // JSON output for agents
+        println!("{{");
+        println!("  \"svg\": \"{}\",", svg_path);
+        println!("  \"polygons\": {},", polygons.len());
+        println!("  \"spacing\": {},", spacing);
+        println!("  \"angle\": {},", angle);
+        println!("  \"passed\": {},", passed);
+        println!("  \"failed\": {},", failed);
+        println!("  \"results\": [");
+        for (i, r) in results.iter().enumerate() {
+            let comma = if i < results.len() - 1 { "," } else { "" };
+            println!("    {{\"pattern\": \"{}\", \"lines\": {}, \"time_ms\": {:.2}, \"status\": \"{}\"}}{}",
+                r.pattern, r.lines, r.time_ms, r.status, comma);
+        }
+        println!("  ]");
+        println!("}}");
+    } else {
+        // Summary table
+        eprintln!("\n════════════════════════════════════════════════════════════");
+        eprintln!("  HARNESS SUMMARY");
+        eprintln!("════════════════════════════════════════════════════════════");
+        eprintln!("  {:12}  {:>10}  {:>10}  {:>6}", "Pattern", "Lines", "Time(ms)", "Status");
+        eprintln!("  {:12}  {:>10}  {:>10}  {:>6}", "-------", "-----", "--------", "------");
+
+        let mut total_lines = 0;
+        let mut total_time = 0.0;
+
+        for r in &results {
+            let status_str = if r.status == "OK" { "✓" } else { "✗" };
+            eprintln!("  {:12}  {:>10}  {:>10.1}  {:>6}", r.pattern, r.lines, r.time_ms, status_str);
+            total_lines += r.lines;
+            total_time += r.time_ms;
+        }
+
+        eprintln!("  {:12}  {:>10}  {:>10}  {:>6}", "-------", "-----", "--------", "------");
+        eprintln!("  {:12}  {:>10}  {:>10.1}", "TOTAL", total_lines, total_time);
+        eprintln!("════════════════════════════════════════════════════════════");
+        eprintln!("  Passed: {}  Failed: {}", passed, failed);
+        eprintln!("════════════════════════════════════════════════════════════");
+
+        if failed > 0 {
+            std::process::exit(1);
+        }
+    }
 }
 
 /// Generate pattern lines for a polygon.
