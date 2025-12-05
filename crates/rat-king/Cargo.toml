@@ -1,5 +1,5 @@
 [package]
-name = "rat-king-core"
+name = "rat-king"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

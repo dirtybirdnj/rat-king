@@ -1,4 +1,4 @@
-# rat-king 🐀👑
+# rat-king
 
 **Blazing-fast fill pattern generation for pen plotters.** Written in Rust for maximum performance.
 
@@ -16,41 +16,68 @@ Speedup: 200x faster
 
 ## Installation
 
-### Binary (Recommended)
+### From crates.io (recommended)
 
 ```bash
-# The Rust CLI is pre-built in the crates directory
-./crates/target/release/rat-king-cli --help
-
-# Or build from source
-cd crates && cargo build --release
+cargo install rat-king-cli
 ```
 
-### Python Wrapper (for vpype integration)
+This installs the `rat-king` binary to `~/.cargo/bin/`.
+
+### From source
 
 ```bash
-pip install -e .
-
-# With vpype plugin
-pip install -e ".[vpype]"
+git clone https://github.com/dirtybirdnj/rat-king
+cd rat-king/crates
+cargo build --release
+./target/release/rat-king --help
 ```
 
-## CLI Usage
+### As a library dependency
+
+```toml
+# In your Cargo.toml
+[dependencies]
+rat-king = "0.1"
+```
+
+Or from git:
+
+```toml
+[dependencies]
+rat-king = { git = "https://github.com/dirtybirdnj/rat-king" }
+```
+
+## Usage
+
+### TUI (Interactive Mode)
+
+```bash
+rat-king                      # Opens TUI with default test file
+rat-king myfile.svg           # Opens TUI with your SVG
+```
+
+**TUI Controls:**
+- `↑`/`↓` or `j`/`k` - Select pattern
+- `←`/`→` or `h`/`l` - Adjust setting (fine)
+- `[`/`]` - Adjust setting (coarse)
+- `Tab` - Switch between spacing/angle
+- `q` or `Esc` - Quit
+
+### CLI Commands
 
 ```bash
 # Fill shapes with a pattern
-rat-king-cli fill input.svg --pattern lines --spacing 2 -o output.svg
+rat-king fill input.svg -p crosshatch -o output.svg
 
 # Benchmark a pattern
-rat-king-cli benchmark input.svg -p crosshatch
+rat-king benchmark input.svg -p gyroid
 
 # List all available patterns
-rat-king-cli patterns
+rat-king patterns
 ```
 
 ## Available Patterns (17 total)
-
-All patterns fully implemented - no stubs!
 
 | Pattern | Description | Visual Style |
 |---------|-------------|--------------|
@@ -77,69 +104,250 @@ All patterns fully implemented - no stubs!
 ```
 rat-king/
 ├── crates/                    # Rust workspace
-│   ├── rat-king-core/         # Pattern generation library
+│   ├── rat-king/              # Pattern generation library (the dependency)
 │   │   └── src/
 │   │       ├── patterns/      # 17 pattern implementations
 │   │       ├── geometry.rs    # Point, Line, Polygon types
-│   │       ├── clip.rs        # Point-in-polygon testing
+│   │       ├── clip.rs        # Point-in-polygon clipping
 │   │       └── hatch.rs       # Line generation utilities
-│   └── rat-king-cli/          # CLI binary
-│       └── src/main.rs        # fill, benchmark, patterns commands
-├── rat_king/                  # Python wrapper (calls Rust binary)
-│   ├── cli.py                 # Python CLI facade
-│   └── vpype_plugin.py        # vpype integration
-└── test_assets/               # Test SVGs
+│   └── rat-king-cli/          # CLI/TUI binary
+│       └── src/main.rs        # TUI + fill, benchmark, patterns commands
+└── test_assets/               # Test SVGs (public domain)
+    └── essex.svg              # 314 polygons - USGS county boundaries
 ```
 
-## Integration with svg-grouper
+## Adding a New Pattern
 
-[svg-grouper](https://github.com/dirtybirdnj/svg-grouper) calls rat-king's Rust CLI directly:
+### The Golden Path
 
-```python
-# svg-grouper invokes the binary
-subprocess.run([
-    "rat-king-cli", "fill", input_svg,
-    "-p", pattern_name,
-    "-s", str(spacing),
-    "-a", str(angle),
-    "-o", output_svg
-])
-```
+Contributors only need to focus on the math - we provide everything else:
 
-## Development
-
-### Building the Rust CLI
+- **Test geometry included**: `essex.svg` has 314 complex polygons (USGS county data)
+- **Instant visual feedback**: TUI shows your pattern in real-time
+- **No art hunting**: Just clone, code, and see it work
 
 ```bash
-cd crates
-cargo build --release
-cargo test
+git clone https://github.com/dirtybirdnj/rat-king
+cd rat-king/crates
+cargo run --release  # Opens TUI with essex.svg - your canvas is ready!
 ```
 
-### Running Benchmarks
+### Step-by-Step Guide
+
+**1. Create the pattern file**
 
 ```bash
-./crates/target/release/rat-king-cli benchmark test_assets/essex.svg -p lines
-./crates/target/release/rat-king-cli benchmark test_assets/essex.svg -p gyroid
+touch crates/rat-king/src/patterns/mypattern.rs
 ```
 
-### Adding a New Pattern
-
-1. Create `crates/rat-king-core/src/patterns/mypattern.rs`
-2. Implement `generate_mypattern_fill(polygon, spacing, angle) -> Vec<Line>`
-3. Add module to `patterns/mod.rs`
-4. Add variant to `Pattern` enum
-5. Wire up in CLI `generate_pattern()` match
-6. Add tests
-
-All patterns follow the same signature:
+**2. Implement the pattern**
 
 ```rust
+//! MyPattern fill - description of what it does.
+
+use crate::geometry::{Line, Polygon};
+use crate::clip::point_in_polygon;
+
+/// Generate mypattern fill for a polygon.
+///
+/// Parameters:
+/// - `spacing`: Controls density/scale of the pattern
+/// - `angle_degrees`: Rotation or variation parameter
 pub fn generate_mypattern_fill(
     polygon: &Polygon,
     spacing: f64,
     angle_degrees: f64,
-) -> Vec<Line>
+) -> Vec<Line> {
+    let Some((min_x, min_y, max_x, max_y)) = polygon.bounding_box() else {
+        return Vec::new();
+    };
+
+    let mut lines = Vec::new();
+
+    // Your pattern generation logic here...
+    // Use point_in_polygon() to clip to the shape
+
+    lines
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::geometry::Point;
+
+    #[test]
+    fn generates_mypattern_lines() {
+        let poly = Polygon::new(vec![
+            Point::new(0.0, 0.0),
+            Point::new(100.0, 0.0),
+            Point::new(100.0, 100.0),
+            Point::new(0.0, 100.0),
+        ]);
+        let lines = generate_mypattern_fill(&poly, 5.0, 0.0);
+        assert!(!lines.is_empty());
+    }
+}
+```
+
+**3. Register the module** in `crates/rat-king/src/patterns/mod.rs`:
+
+```rust
+mod mypattern;
+pub use mypattern::generate_mypattern_fill;
+```
+
+**4. Add to the Pattern enum** in the same file:
+
+```rust
+pub enum Pattern {
+    // ... existing patterns ...
+    Mypattern,
+}
+
+impl Pattern {
+    pub fn all() -> &'static [Pattern] {
+        &[
+            // ... existing patterns ...
+            Pattern::Mypattern,
+        ]
+    }
+
+    pub fn name(&self) -> &'static str {
+        match self {
+            // ... existing patterns ...
+            Pattern::Mypattern => "mypattern",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<Pattern> {
+        match name.to_lowercase().as_str() {
+            // ... existing patterns ...
+            "mypattern" => Some(Pattern::Mypattern),
+            _ => None,
+        }
+    }
+}
+```
+
+**5. Wire up in CLI** in `crates/rat-king-cli/src/main.rs`:
+
+```rust
+// Add to imports
+use rat_king::patterns::generate_mypattern_fill;
+
+// Add to generate_pattern() match
+Pattern::Mypattern => generate_mypattern_fill(polygon, spacing, angle),
+```
+
+**6. Run tests and verify**
+
+```bash
+cd crates
+cargo test
+cargo run --release -- patterns  # Should list your new pattern
+cargo run --release              # Test in TUI
+```
+
+**7. Submit your pattern**
+
+```bash
+git checkout -b add-mypattern
+git add -A
+git commit -m "Add mypattern fill pattern"
+git push origin add-mypattern
+# Open a pull request
+```
+
+## Versioning & Updates
+
+### For App Developers
+
+**Using the binary (svg-grouper, etc.):**
+
+```bash
+# Check current version
+rat-king --help  # Shows version in output
+
+# Update to latest
+cargo install rat-king-cli --force
+```
+
+**Using the library:**
+
+```toml
+# Cargo.toml - pin to minor version for stability
+rat-king = "0.1"
+
+# Or always get latest
+rat-king = "*"
+```
+
+Update with:
+```bash
+cargo update
+```
+
+### Release Process (for maintainers)
+
+1. Update version in `crates/Cargo.toml` (workspace version)
+2. Update CHANGELOG if present
+3. Commit: `git commit -m "Release v0.2.0"`
+4. Tag: `git tag v0.2.0`
+5. Push: `git push && git push --tags`
+6. Publish:
+   ```bash
+   cd crates/rat-king && cargo publish
+   cd ../rat-king-cli && cargo publish
+   ```
+
+### Semantic Versioning
+
+- **Patch (0.1.x)**: Bug fixes, performance improvements
+- **Minor (0.x.0)**: New patterns, new features (backward compatible)
+- **Major (x.0.0)**: Breaking API changes
+
+New patterns = minor version bump. Apps using `rat-king = "0.1"` will automatically get new patterns on `cargo update`.
+
+## Integration Examples
+
+### Python (subprocess)
+
+```python
+import subprocess
+import json
+
+result = subprocess.run([
+    "rat-king", "fill", "input.svg",
+    "-p", "crosshatch",
+    "-s", "2.5",
+    "-a", "45",
+    "-o", "output.svg"
+], capture_output=True, text=True)
+```
+
+### Rust (library)
+
+```rust
+use rat_king::{Pattern, extract_polygons_from_svg};
+use rat_king::patterns::generate_lines_fill;
+
+let svg = std::fs::read_to_string("input.svg")?;
+let polygons = extract_polygons_from_svg(&svg)?;
+
+for poly in &polygons {
+    let lines = generate_lines_fill(poly, 2.5, 45.0);
+    // Use lines...
+}
+```
+
+## Development
+
+```bash
+cd crates
+cargo build --release    # Build optimized binary
+cargo test               # Run all tests
+cargo run --release      # Run TUI
+cargo run --release -- benchmark test_assets/essex.svg -p lines
 ```
 
 ## Why Rust?
@@ -151,13 +359,14 @@ The original Python implementation using Shapely was clean but slow:
 Rust gives us:
 - 200x speedup (milliseconds instead of seconds)
 - Zero-copy geometry operations
-- Parallel-ready (future work)
+- Native TUI with real-time pattern preview
 - Single binary distribution
+- Easy cross-platform builds
 
 ## Related Projects
 
-- [vpype](https://github.com/abey79/vpype) - Swiss-army knife for plotter workflows
 - [svg-grouper](https://github.com/dirtybirdnj/svg-grouper) - GUI for plotter SVG prep
+- [vpype](https://github.com/abey79/vpype) - Swiss-army knife for plotter workflows
 
 ## License
 

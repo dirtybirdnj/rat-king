@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["rat-king-core", "rat-king-cli"]
+members = ["rat-king", "rat-king-cli"]
 
 [workspace.package]
 version = "0.1.0"
