@@ -13,6 +13,9 @@ mod crossspiral;
 mod hilbert;
 mod gyroid;
 mod guilloche;
+mod lissajous;
+mod rose;
+mod phyllotaxis;
 
 pub use zigzag::generate_zigzag_fill;
 pub use wiggle::generate_wiggle_fill;
@@ -25,6 +28,9 @@ pub use crossspiral::generate_crossspiral_fill;
 pub use hilbert::generate_hilbert_fill;
 pub use gyroid::generate_gyroid_fill;
 pub use guilloche::generate_guilloche_fill;
+pub use lissajous::generate_lissajous_fill;
+pub use rose::generate_rose_fill;
+pub use phyllotaxis::generate_phyllotaxis_fill;
 
 // Re-export from hatch module (already implemented)
 pub use crate::hatch::{generate_lines_fill, generate_crosshatch_fill};
@@ -44,6 +50,9 @@ pub enum Pattern {
     Crossspiral,
     Hilbert,
     Guilloche,
+    Lissajous,
+    Rose,
+    Phyllotaxis,
     // Stubs (not fully implemented yet)
     Scribble,
     Gyroid,
@@ -65,6 +74,9 @@ impl Pattern {
             Pattern::Crossspiral,
             Pattern::Hilbert,
             Pattern::Guilloche,
+            Pattern::Lissajous,
+            Pattern::Rose,
+            Pattern::Phyllotaxis,
             Pattern::Scribble,
             Pattern::Gyroid,
         ]
@@ -85,6 +97,9 @@ impl Pattern {
             Pattern::Crossspiral => "crossspiral",
             Pattern::Hilbert => "hilbert",
             Pattern::Guilloche => "guilloche",
+            Pattern::Lissajous => "lissajous",
+            Pattern::Rose => "rose",
+            Pattern::Phyllotaxis => "phyllotaxis",
             Pattern::Scribble => "scribble",
             Pattern::Gyroid => "gyroid",
         }
@@ -110,6 +125,9 @@ impl Pattern {
             "crossspiral" => Some(Pattern::Crossspiral),
             "hilbert" => Some(Pattern::Hilbert),
             "guilloche" | "spirograph" => Some(Pattern::Guilloche),
+            "lissajous" => Some(Pattern::Lissajous),
+            "rose" | "rhodonea" => Some(Pattern::Rose),
+            "phyllotaxis" | "sunflower" => Some(Pattern::Phyllotaxis),
             "scribble" => Some(Pattern::Scribble),
             "gyroid" => Some(Pattern::Gyroid),
             _ => None,

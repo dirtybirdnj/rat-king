@@ -19,6 +19,8 @@ use rat_king_core::{
         generate_honeycomb_fill, generate_scribble_fill,
         generate_crossspiral_fill, generate_hilbert_fill,
         generate_gyroid_fill, generate_guilloche_fill,
+        generate_lissajous_fill, generate_rose_fill,
+        generate_phyllotaxis_fill,
     },
 };
 
@@ -55,7 +57,7 @@ fn print_usage(prog: &str) {
     eprintln!();
     eprintln!("Patterns:");
     eprintln!("  Implemented: lines, crosshatch, zigzag, wiggle, spiral, fermat, concentric, radial,");
-    eprintln!("               honeycomb, crossspiral, hilbert, guilloche");
+    eprintln!("               honeycomb, crossspiral, hilbert, guilloche, lissajous, rose, phyllotaxis");
     eprintln!("  Stubs:       scribble, gyroid");
     eprintln!();
     eprintln!("Options:");
@@ -248,6 +250,9 @@ fn generate_pattern(pattern: Pattern, polygon: &Polygon, spacing: f64, angle: f6
         Pattern::Crossspiral => generate_crossspiral_fill(polygon, spacing, angle),
         Pattern::Hilbert => generate_hilbert_fill(polygon, spacing, angle),
         Pattern::Guilloche => generate_guilloche_fill(polygon, spacing, angle),
+        Pattern::Lissajous => generate_lissajous_fill(polygon, spacing, angle),
+        Pattern::Rose => generate_rose_fill(polygon, spacing, angle),
+        Pattern::Phyllotaxis => generate_phyllotaxis_fill(polygon, spacing, angle),
         // Stub patterns - these output warnings and fall back to simpler patterns
         Pattern::Scribble => generate_scribble_fill(polygon, spacing, angle),
         Pattern::Gyroid => generate_gyroid_fill(polygon, spacing, angle),
