@@ -8,10 +8,12 @@
 
 use std::env;
 use std::fs;
-use std::io::{self, stdout};
+use std::io::{self, stdout, Read as IoRead};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 use std::time::{Duration, Instant};
+
+use serde::Serialize;
 
 use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind},
@@ -702,21 +704,70 @@ fn ui(frame: &mut Frame, app: &mut App) {
 
 // ============ CLI Commands ============
 
+/// Output format for the fill command.
+#[derive(Clone, Copy, PartialEq)]
+enum OutputFormat {
+    Svg,
+    Json,
+}
+
+/// A line in JSON output format.
+#[derive(Serialize)]
+struct JsonLine {
+    x1: f64,
+    y1: f64,
+    x2: f64,
+    y2: f64,
+}
+
+/// A shape with its lines in JSON output (per-polygon mode).
+#[derive(Serialize)]
+struct JsonShape {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    id: Option<String>,
+    index: usize,
+    lines: Vec<JsonLine>,
+}
+
+/// JSON output with all lines (flat mode).
+#[derive(Serialize)]
+struct JsonOutputFlat {
+    lines: Vec<JsonLine>,
+}
+
+/// JSON output with per-shape grouping.
+#[derive(Serialize)]
+struct JsonOutputGrouped {
+    shapes: Vec<JsonShape>,
+}
+
 fn print_usage(prog: &str) {
     eprintln!("rat-king - fast pattern generation for SVG polygons");
     eprintln!();
     eprintln!("Usage:");
     eprintln!("  {} [svg_file]                      Launch TUI", prog);
-    eprintln!("  {} fill <svg> -p <pattern> [-o out.svg]", prog);
+    eprintln!("  {} fill <svg> -p <pattern> [options]", prog);
     eprintln!("  {} benchmark <svg> [-p <pattern>]", prog);
     eprintln!("  {} harness [svg] [-p pattern1,pattern2,...]", prog);
     eprintln!("  {} patterns", prog);
     eprintln!();
-    eprintln!("Harness Options:");
+    eprintln!("Fill options:");
+    eprintln!("  -p, --pattern <name>   Pattern to use (required)");
+    eprintln!("  -o, --output <file>    Output file (- for stdout, default: stdout)");
+    eprintln!("  -s, --spacing <n>      Line spacing (default: 2.5)");
+    eprintln!("  -a, --angle <deg>      Pattern angle (default: 45)");
+    eprintln!("  -f, --format <fmt>     Output format: svg, json (default: svg)");
+    eprintln!("  --grouped              JSON only: group lines by input shape");
+    eprintln!();
+    eprintln!("Harness options:");
     eprintln!("  -p, --patterns   Comma-separated list of patterns (default: all)");
     eprintln!("  -s, --spacing    Spacing value (default: 2.5)");
     eprintln!("  -a, --angle      Angle value (default: 45)");
     eprintln!("  --json           Output results as JSON");
+    eprintln!();
+    eprintln!("Stdin support:");
+    eprintln!("  Use '-' as input file to read SVG from stdin:");
+    eprintln!("  echo '<svg>...</svg>' | {} fill - -p lines -o -", prog);
     eprintln!();
     eprintln!("TUI Controls:");
     eprintln!("  ↑/↓ or j/k    Select pattern");
@@ -739,6 +790,8 @@ fn cmd_fill(args: &[String]) {
     let mut pattern_name = "lines";
     let mut spacing = 2.5;
     let mut angle = 45.0;
+    let mut format = OutputFormat::Svg;
+    let mut grouped = false;
 
     let mut i = 0;
     while i < args.len() {
@@ -767,6 +820,22 @@ fn cmd_fill(args: &[String]) {
                     angle = args[i].parse().unwrap_or(45.0);
                 }
             }
+            "-f" | "--format" => {
+                i += 1;
+                if i < args.len() {
+                    format = match args[i].to_lowercase().as_str() {
+                        "json" => OutputFormat::Json,
+                        "svg" => OutputFormat::Svg,
+                        other => {
+                            eprintln!("Unknown format: {}. Use 'svg' or 'json'.", other);
+                            std::process::exit(1);
+                        }
+                    };
+                }
+            }
+            "--grouped" => {
+                grouped = true;
+            }
             path => {
                 if svg_path.is_none() {
                     svg_path = Some(path);
@@ -777,7 +846,7 @@ fn cmd_fill(args: &[String]) {
     }
 
     let svg_path = svg_path.unwrap_or_else(|| {
-        eprintln!("Error: SVG file required");
+        eprintln!("Error: SVG file required (use '-' for stdin)");
         std::process::exit(1);
     });
 
@@ -786,9 +855,18 @@ fn cmd_fill(args: &[String]) {
         std::process::exit(1);
     });
 
-    eprintln!("Loading: {}", svg_path);
-    let svg_content = fs::read_to_string(svg_path)
-        .expect("Failed to read SVG file");
+    // Read SVG content from file or stdin
+    let svg_content = if svg_path == "-" {
+        eprintln!("Reading SVG from stdin...");
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer)
+            .expect("Failed to read from stdin");
+        buffer
+    } else {
+        eprintln!("Loading: {}", svg_path);
+        fs::read_to_string(svg_path)
+            .expect("Failed to read SVG file")
+    };
 
     let polygons = extract_polygons_from_svg(&svg_content)
         .expect("Failed to parse SVG");
@@ -796,23 +874,82 @@ fn cmd_fill(args: &[String]) {
     eprintln!("Loaded {} polygons", polygons.len());
 
     let start = Instant::now();
-    let mut all_lines: Vec<Line> = Vec::new();
 
-    for polygon in &polygons {
-        let lines = generate_pattern(pattern, polygon, spacing, angle);
-        all_lines.extend(lines);
-    }
+    // Generate output based on format and grouping
+    let output = match (format, grouped) {
+        (OutputFormat::Json, true) => {
+            // Per-polygon grouped JSON output
+            let shapes: Vec<JsonShape> = polygons
+                .iter()
+                .enumerate()
+                .map(|(idx, polygon)| {
+                    let lines = generate_pattern(pattern, polygon, spacing, angle);
+                    JsonShape {
+                        id: polygon.id.clone(),
+                        index: idx,
+                        lines: lines.iter().map(|l| JsonLine {
+                            x1: l.x1,
+                            y1: l.y1,
+                            x2: l.x2,
+                            y2: l.y2,
+                        }).collect(),
+                    }
+                })
+                .collect();
 
-    let elapsed = start.elapsed();
-    eprintln!("Generated {} lines in {:?}", all_lines.len(), elapsed);
+            let elapsed = start.elapsed();
+            let total_lines: usize = shapes.iter().map(|s| s.lines.len()).sum();
+            eprintln!("Generated {} lines in {} shapes in {:?}", total_lines, shapes.len(), elapsed);
 
-    let svg_output = lines_to_svg(&all_lines, &svg_content);
+            let output = JsonOutputGrouped { shapes };
+            serde_json::to_string(&output).expect("Failed to serialize JSON")
+        }
+        (OutputFormat::Json, false) => {
+            // Flat JSON output
+            let mut all_lines: Vec<Line> = Vec::new();
+            for polygon in &polygons {
+                let lines = generate_pattern(pattern, polygon, spacing, angle);
+                all_lines.extend(lines);
+            }
 
-    if let Some(output) = output_path {
-        fs::write(output, &svg_output).expect("Failed to write output SVG");
-        eprintln!("Wrote: {}", output);
-    } else {
-        println!("{}", svg_output);
+            let elapsed = start.elapsed();
+            eprintln!("Generated {} lines in {:?}", all_lines.len(), elapsed);
+
+            let json_lines: Vec<JsonLine> = all_lines.iter().map(|l| JsonLine {
+                x1: l.x1,
+                y1: l.y1,
+                x2: l.x2,
+                y2: l.y2,
+            }).collect();
+
+            let output = JsonOutputFlat { lines: json_lines };
+            serde_json::to_string(&output).expect("Failed to serialize JSON")
+        }
+        (OutputFormat::Svg, _) => {
+            // SVG output (grouped flag is ignored)
+            let mut all_lines: Vec<Line> = Vec::new();
+            for polygon in &polygons {
+                let lines = generate_pattern(pattern, polygon, spacing, angle);
+                all_lines.extend(lines);
+            }
+
+            let elapsed = start.elapsed();
+            eprintln!("Generated {} lines in {:?}", all_lines.len(), elapsed);
+
+            lines_to_svg(&all_lines, &svg_content)
+        }
+    };
+
+    // Write output
+    match output_path {
+        Some("-") | None => {
+            // stdout
+            println!("{}", output);
+        }
+        Some(path) => {
+            fs::write(path, &output).expect("Failed to write output file");
+            eprintln!("Wrote: {}", path);
+        }
     }
 }
 

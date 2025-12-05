@@ -99,6 +99,7 @@ fn extract_from_node(node: &usvg::Node, polygons: &mut Vec<Polygon>) {
 /// Convert a usvg path to our Polygon type.
 fn path_to_polygon(path: &usvg::Path) -> Option<Polygon> {
     let data = path.data();
+    let id = path.id();
 
     // ## Rust Lesson #23: Iterator Peekable & Adapters
     //
@@ -135,7 +136,13 @@ fn path_to_polygon(path: &usvg::Path) -> Option<Polygon> {
     }
 
     if points.len() >= 3 {
-        Some(Polygon::new(points))
+        // Preserve the element's ID if it has one
+        let polygon_id = if id.is_empty() {
+            None
+        } else {
+            Some(id.to_string())
+        };
+        Some(Polygon::with_id(points, polygon_id))
     } else {
         None
     }

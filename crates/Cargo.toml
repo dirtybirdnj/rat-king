@@ -4,6 +4,6 @@ members = ["rat-king", "rat-king-cli"]
 
 [workspace.package]
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 license = "MIT"
 authors = ["mgilbert"]

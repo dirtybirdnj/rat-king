@@ -45,6 +45,8 @@ pub struct Polygon {
     pub outer: Vec<Point>,
     /// Interior holes (clockwise winding)
     pub holes: Vec<Vec<Point>>,
+    /// Optional ID from the SVG element
+    pub id: Option<String>,
 }
 
 // ============================================================================
@@ -121,12 +123,22 @@ impl Polygon {
         Self {
             outer,
             holes: Vec::new(), // Empty vec, like []
+            id: None,
         }
     }
 
     /// Create a polygon with holes.
     pub fn with_holes(outer: Vec<Point>, holes: Vec<Vec<Point>>) -> Self {
-        Self { outer, holes }
+        Self { outer, holes, id: None }
+    }
+
+    /// Create a polygon with an ID.
+    pub fn with_id(outer: Vec<Point>, id: Option<String>) -> Self {
+        Self {
+            outer,
+            holes: Vec::new(),
+            id,
+        }
     }
 
     /// Get the bounding box as (min_x, min_y, max_x, max_y).
