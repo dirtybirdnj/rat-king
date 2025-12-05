@@ -1,0 +1,13 @@
+[package]
+name = "rat-king-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Core geometry and pattern generation for rat-king"
+
+[dependencies]
+# SVG parsing - usvg provides fully resolved SVG tree
+usvg = "0.45"
+
+# Path parsing for d="" attributes
+svgtypes = "0.16"

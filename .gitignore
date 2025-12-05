@@ -72,3 +72,5 @@ venv.bak/
 # Test artifacts
 test_output/
 *.svg.out
+# Rust build artifacts
+crates/target/

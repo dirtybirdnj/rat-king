@@ -1,0 +1,9 @@
+[package]
+name = "rat-king-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "CLI for rat-king pattern generation"
+
+[dependencies]
+rat-king-core = { path = "../rat-king-core" }
