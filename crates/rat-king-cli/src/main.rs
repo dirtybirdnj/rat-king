@@ -18,7 +18,7 @@ use rat_king_core::{
         generate_concentric_fill, generate_radial_fill,
         generate_honeycomb_fill, generate_scribble_fill,
         generate_crossspiral_fill, generate_hilbert_fill,
-        generate_gyroid_fill,
+        generate_gyroid_fill, generate_guilloche_fill,
     },
 };
 
@@ -54,8 +54,9 @@ fn print_usage(prog: &str) {
     eprintln!("  {} patterns", prog);
     eprintln!();
     eprintln!("Patterns:");
-    eprintln!("  Implemented: lines, crosshatch, zigzag, wiggle, spiral, fermat, concentric, radial, honeycomb");
-    eprintln!("  Stubs:       scribble, crossspiral, hilbert, gyroid");
+    eprintln!("  Implemented: lines, crosshatch, zigzag, wiggle, spiral, fermat, concentric, radial,");
+    eprintln!("               honeycomb, crossspiral, hilbert, guilloche");
+    eprintln!("  Stubs:       scribble, gyroid");
     eprintln!();
     eprintln!("Options:");
     eprintln!("  -p, --pattern <name>   Pattern to use (default: lines)");
@@ -244,10 +245,11 @@ fn generate_pattern(pattern: Pattern, polygon: &Polygon, spacing: f64, angle: f6
         Pattern::Concentric => generate_concentric_fill(polygon, spacing, true),
         Pattern::Radial => generate_radial_fill(polygon, 10.0, angle), // 10 degrees between rays
         Pattern::Honeycomb => generate_honeycomb_fill(polygon, spacing * 4.0, angle),
-        // Stub patterns - these output warnings and fall back to simpler patterns
-        Pattern::Scribble => generate_scribble_fill(polygon, spacing, angle),
         Pattern::Crossspiral => generate_crossspiral_fill(polygon, spacing, angle),
         Pattern::Hilbert => generate_hilbert_fill(polygon, spacing, angle),
+        Pattern::Guilloche => generate_guilloche_fill(polygon, spacing, angle),
+        // Stub patterns - these output warnings and fall back to simpler patterns
+        Pattern::Scribble => generate_scribble_fill(polygon, spacing, angle),
         Pattern::Gyroid => generate_gyroid_fill(polygon, spacing, angle),
     }
 }

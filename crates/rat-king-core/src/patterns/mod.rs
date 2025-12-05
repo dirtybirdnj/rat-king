@@ -12,6 +12,7 @@ mod scribble;
 mod crossspiral;
 mod hilbert;
 mod gyroid;
+mod guilloche;
 
 pub use zigzag::generate_zigzag_fill;
 pub use wiggle::generate_wiggle_fill;
@@ -23,6 +24,7 @@ pub use scribble::generate_scribble_fill;
 pub use crossspiral::generate_crossspiral_fill;
 pub use hilbert::generate_hilbert_fill;
 pub use gyroid::generate_gyroid_fill;
+pub use guilloche::generate_guilloche_fill;
 
 // Re-export from hatch module (already implemented)
 pub use crate::hatch::{generate_lines_fill, generate_crosshatch_fill};
@@ -39,9 +41,11 @@ pub enum Pattern {
     Concentric,
     Radial,
     Honeycomb,
-    Scribble,
     Crossspiral,
     Hilbert,
+    Guilloche,
+    // Stubs (not fully implemented yet)
+    Scribble,
     Gyroid,
 }
 
@@ -58,9 +62,10 @@ impl Pattern {
             Pattern::Concentric,
             Pattern::Radial,
             Pattern::Honeycomb,
-            Pattern::Scribble,
             Pattern::Crossspiral,
             Pattern::Hilbert,
+            Pattern::Guilloche,
+            Pattern::Scribble,
             Pattern::Gyroid,
         ]
     }
@@ -77,16 +82,17 @@ impl Pattern {
             Pattern::Concentric => "concentric",
             Pattern::Radial => "radial",
             Pattern::Honeycomb => "honeycomb",
-            Pattern::Scribble => "scribble",
             Pattern::Crossspiral => "crossspiral",
             Pattern::Hilbert => "hilbert",
+            Pattern::Guilloche => "guilloche",
+            Pattern::Scribble => "scribble",
             Pattern::Gyroid => "gyroid",
         }
     }
 
     /// Check if pattern is a stub (not fully implemented).
     pub fn is_stub(&self) -> bool {
-        matches!(self, Pattern::Scribble | Pattern::Crossspiral | Pattern::Hilbert | Pattern::Gyroid)
+        matches!(self, Pattern::Scribble | Pattern::Gyroid)
     }
 
     /// Parse pattern from string.
@@ -101,9 +107,10 @@ impl Pattern {
             "concentric" => Some(Pattern::Concentric),
             "radial" => Some(Pattern::Radial),
             "honeycomb" => Some(Pattern::Honeycomb),
-            "scribble" => Some(Pattern::Scribble),
             "crossspiral" => Some(Pattern::Crossspiral),
             "hilbert" => Some(Pattern::Hilbert),
+            "guilloche" | "spirograph" => Some(Pattern::Guilloche),
+            "scribble" => Some(Pattern::Scribble),
             "gyroid" => Some(Pattern::Gyroid),
             _ => None,
         }
