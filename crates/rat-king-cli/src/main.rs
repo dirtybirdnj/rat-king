@@ -56,9 +56,8 @@ fn print_usage(prog: &str) {
     eprintln!("  {} patterns", prog);
     eprintln!();
     eprintln!("Patterns:");
-    eprintln!("  Implemented: lines, crosshatch, zigzag, wiggle, spiral, fermat, concentric, radial,");
-    eprintln!("               honeycomb, crossspiral, hilbert, guilloche, lissajous, rose, phyllotaxis");
-    eprintln!("  Stubs:       scribble, gyroid");
+    eprintln!("  lines, crosshatch, zigzag, wiggle, spiral, fermat, concentric, radial, honeycomb,");
+    eprintln!("  crossspiral, hilbert, guilloche, lissajous, rose, phyllotaxis, scribble, gyroid");
     eprintln!();
     eprintln!("Options:");
     eprintln!("  -p, --pattern <name>   Pattern to use (default: lines)");

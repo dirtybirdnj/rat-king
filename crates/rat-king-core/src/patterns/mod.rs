@@ -53,7 +53,6 @@ pub enum Pattern {
     Lissajous,
     Rose,
     Phyllotaxis,
-    // Stubs (not fully implemented yet)
     Scribble,
     Gyroid,
 }
@@ -106,8 +105,9 @@ impl Pattern {
     }
 
     /// Check if pattern is a stub (not fully implemented).
+    /// All patterns are now fully implemented.
     pub fn is_stub(&self) -> bool {
-        matches!(self, Pattern::Scribble | Pattern::Gyroid)
+        false
     }
 
     /// Parse pattern from string.
