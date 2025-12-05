@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Learning Rust Through rat-king</title>
+    <style>
+        :root {
+            --bg: #1a1a2e;
+            --bg-light: #16213e;
+            --accent: #e94560;
+            --accent2: #0f3460;
+            --text: #eaeaea;
+            --text-dim: #a0a0a0;
+            --code-bg: #0d1117;
+            --success: #3fb950;
+            --warning: #d29922;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            padding: 2rem;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: var(--accent);
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            border-bottom: 3px solid var(--accent);
+            padding-bottom: 0.5rem;
+        }
+
+        h2 {
+            color: var(--accent);
+            margin-top: 3rem;
+            margin-bottom: 1rem;
+            font-size: 1.8rem;
+        }
+
+        h3 {
+            color: var(--text);
+            margin-top: 2rem;
+            margin-bottom: 0.75rem;
+            font-size: 1.3rem;
+        }
+
+        p {
+            margin-bottom: 1rem;
+        }
+
+        .subtitle {
+            color: var(--text-dim);
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
+        }
+
+        .concept {
+            background: var(--bg-light);
+            border-left: 4px solid var(--accent);
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .concept h4 {
+            color: var(--accent);
+            margin-bottom: 0.5rem;
+        }
+
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+
+        .comparison > div {
+            background: var(--code-bg);
+            padding: 1rem;
+            border-radius: 8px;
+        }
+
+        .comparison h5 {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+        }
+
+        pre {
+            background: var(--code-bg);
+            padding: 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 1rem 0;
+            font-size: 0.9rem;
+        }
+
+        code {
+            font-family: 'Fira Code', 'Consolas', monospace;
+            color: #79c0ff;
+        }
+
+        pre code {
+            color: var(--text);
+        }
+
+        .keyword { color: #ff7b72; }
+        .type { color: #79c0ff; }
+        .string { color: #a5d6ff; }
+        .number { color: #79c0ff; }
+        .comment { color: #8b949e; }
+        .function { color: #d2a8ff; }
+        .macro { color: #ffa657; }
+
+        .callout {
+            background: var(--accent2);
+            border: 1px solid var(--accent);
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+        }
+
+        .callout.success {
+            border-color: var(--success);
+            background: rgba(63, 185, 80, 0.1);
+        }
+
+        .callout.warning {
+            border-color: var(--warning);
+            background: rgba(210, 153, 34, 0.1);
+        }
+
+        .file-tree {
+            background: var(--code-bg);
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: monospace;
+        }
+
+        .file-tree .dir { color: #79c0ff; }
+        .file-tree .file { color: var(--text); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--accent2);
+        }
+
+        th {
+            color: var(--accent);
+            background: var(--bg-light);
+        }
+
+        .toc {
+            background: var(--bg-light);
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin: 2rem 0;
+        }
+
+        .toc h3 {
+            margin-top: 0;
+        }
+
+        .toc ol {
+            margin-left: 1.5rem;
+        }
+
+        .toc li {
+            margin: 0.5rem 0;
+        }
+
+        .toc a {
+            color: var(--text);
+            text-decoration: none;
+        }
+
+        .toc a:hover {
+            color: var(--accent);
+        }
+
+        @media (max-width: 700px) {
+            .comparison {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Learning Rust Through rat-king</h1>
+    <p class="subtitle">A practical guide for Node.js developers</p>
+
+    <div class="toc">
+        <h3>Contents</h3>
+        <ol>
+            <li><a href="#project">Project Structure (Cargo vs npm)</a></li>
+            <li><a href="#types">Types & Variables</a></li>
+            <li><a href="#structs">Structs (like JS objects, but better)</a></li>
+            <li><a href="#ownership">Ownership & Borrowing (the hard part)</a></li>
+            <li><a href="#enums">Enums & Pattern Matching</a></li>
+            <li><a href="#option">Option & Result (no null, no exceptions)</a></li>
+            <li><a href="#modules">Modules & Visibility</a></li>
+            <li><a href="#iterators">Iterators (like Array methods)</a></li>
+            <li><a href="#actual">The Actual Code We Wrote</a></li>
+        </ol>
+    </div>
+
+    <h2 id="project">1. Project Structure</h2>
+
+    <p>Rust uses <strong>Cargo</strong> instead of npm. Same idea, different names:</p>
+
+    <table>
+        <tr><th>npm / Node</th><th>Cargo / Rust</th></tr>
+        <tr><td>package.json</td><td>Cargo.toml</td></tr>
+        <tr><td>node_modules/</td><td>target/ (gitignored)</td></tr>
+        <tr><td>npm install</td><td>cargo build</td></tr>
+        <tr><td>npm test</td><td>cargo test</td></tr>
+        <tr><td>npm run build</td><td>cargo build --release</td></tr>
+        <tr><td>package (library)</td><td>crate</td></tr>
+        <tr><td>monorepo</td><td>workspace</td></tr>
+    </table>
+
+    <h3>Our Project Structure</h3>
+    <div class="file-tree">
+<span class="dir">crates/</span>
+├── <span class="file">Cargo.toml</span>          <span class="comment"># Workspace config (like lerna.json)</span>
+├── <span class="dir">rat-king-core/</span>      <span class="comment"># Library crate</span>
+│   ├── <span class="file">Cargo.toml</span>
+│   └── <span class="dir">src/</span>
+│       ├── <span class="file">lib.rs</span>        <span class="comment"># Library entry point</span>
+│       ├── <span class="file">geometry.rs</span>   <span class="comment"># Point, Line, Polygon</span>
+│       ├── <span class="file">clip.rs</span>       <span class="comment"># Clipping algorithms</span>
+│       ├── <span class="file">hatch.rs</span>      <span class="comment"># Hatch line generation</span>
+│       ├── <span class="file">svg.rs</span>        <span class="comment"># SVG parsing</span>
+│       └── <span class="dir">patterns/</span>     <span class="comment"># Pattern modules</span>
+└── <span class="dir">rat-king-cli/</span>       <span class="comment"># Binary crate</span>
+    ├── <span class="file">Cargo.toml</span>
+    └── <span class="dir">src/</span>
+        └── <span class="file">main.rs</span>       <span class="comment"># CLI entry point</span>
+    </div>
+
+    <div class="concept">
+        <h4>Key Insight</h4>
+        <p>In Rust, <code>lib.rs</code> = library, <code>main.rs</code> = executable. We have both: a library with reusable code, and a CLI that uses it.</p>
+    </div>
+
+    <h2 id="types">2. Types & Variables</h2>
+
+    <p>Rust is statically typed, but has type inference like TypeScript.</p>
+
+    <div class="comparison">
+        <div>
+            <h5>JavaScript</h5>
+<pre><code><span class="keyword">let</span> x = 5;           <span class="comment">// mutable</span>
+<span class="keyword">const</span> y = 10;        <span class="comment">// immutable</span>
+
+<span class="keyword">let</span> name = <span class="string">"Mat"</span>;
+<span class="keyword">let</span> coords = [1.0, 2.0];
+<span class="keyword">let</span> active = <span class="keyword">true</span>;</code></pre>
+        </div>
+        <div>
+            <h5>Rust</h5>
+<pre><code><span class="keyword">let mut</span> x = 5;       <span class="comment">// mutable</span>
+<span class="keyword">let</span> y = 10;          <span class="comment">// immutable (default!)</span>
+
+<span class="keyword">let</span> name = <span class="string">"Mat"</span>;
+<span class="keyword">let</span> coords = [1.0, 2.0];
+<span class="keyword">let</span> active = <span class="keyword">true</span>;</code></pre>
+        </div>
+    </div>
+
+    <div class="callout warning">
+        <strong>Rust defaults to immutable!</strong> You must explicitly add <code>mut</code> to make variables changeable. This prevents accidental mutations.
+    </div>
+
+    <h3>Common Types</h3>
+    <table>
+        <tr><th>Type</th><th>Description</th><th>Example</th></tr>
+        <tr><td><code>i32, i64</code></td><td>Signed integers</td><td><code>-42</code></td></tr>
+        <tr><td><code>u32, u64</code></td><td>Unsigned integers</td><td><code>42</code></td></tr>
+        <tr><td><code>f32, f64</code></td><td>Floats (we use f64)</td><td><code>3.14159</code></td></tr>
+        <tr><td><code>bool</code></td><td>Boolean</td><td><code>true, false</code></td></tr>
+        <tr><td><code>&str</code></td><td>String slice (borrowed)</td><td><code>"hello"</code></td></tr>
+        <tr><td><code>String</code></td><td>Owned string</td><td><code>String::from("hello")</code></td></tr>
+        <tr><td><code>Vec&lt;T&gt;</code></td><td>Dynamic array (like [])</td><td><code>vec![1, 2, 3]</code></td></tr>
+    </table>
+
+    <h2 id="structs">3. Structs</h2>
+
+    <p>Structs are like JavaScript objects, but with fixed shape at compile time.</p>
+
+    <div class="comparison">
+        <div>
+            <h5>JavaScript</h5>
+<pre><code><span class="keyword">class</span> <span class="type">Point</span> {
+  <span class="function">constructor</span>(x, y) {
+    <span class="keyword">this</span>.x = x;
+    <span class="keyword">this</span>.y = y;
+  }
+
+  <span class="function">distance</span>(other) {
+    <span class="keyword">const</span> dx = <span class="keyword">this</span>.x - other.x;
+    <span class="keyword">const</span> dy = <span class="keyword">this</span>.y - other.y;
+    <span class="keyword">return</span> Math.<span class="function">sqrt</span>(dx*dx + dy*dy);
+  }
+}</code></pre>
+        </div>
+        <div>
+            <h5>Rust (from geometry.rs)</h5>
+<pre><code><span class="keyword">pub struct</span> <span class="type">Point</span> {
+    <span class="keyword">pub</span> x: <span class="type">f64</span>,
+    <span class="keyword">pub</span> y: <span class="type">f64</span>,
+}
+
+<span class="keyword">impl</span> <span class="type">Point</span> {
+    <span class="keyword">pub fn</span> <span class="function">distance</span>(&<span class="keyword">self</span>, other: &<span class="type">Point</span>) -> <span class="type">f64</span> {
+        <span class="keyword">let</span> dx = <span class="keyword">self</span>.x - other.x;
+        <span class="keyword">let</span> dy = <span class="keyword">self</span>.y - other.y;
+        (dx*dx + dy*dy).<span class="function">sqrt</span>()
+    }
+}</code></pre>
+        </div>
+    </div>
+
+    <div class="concept">
+        <h4>struct vs impl</h4>
+        <p><code>struct</code> defines the data. <code>impl</code> defines the methods. They're separate blocks!</p>
+    </div>
+
+    <h3>Derives: Free Functionality</h3>
+    <p>Rust can auto-generate common traits with <code>#[derive(...)]</code>:</p>
+
+<pre><code><span class="comment">// This single line gives us a lot:</span>
+<span class="macro">#[derive(Debug, Clone, Copy, PartialEq)]</span>
+<span class="keyword">pub struct</span> <span class="type">Point</span> {
+    <span class="keyword">pub</span> x: <span class="type">f64</span>,
+    <span class="keyword">pub</span> y: <span class="type">f64</span>,
+}
+
+<span class="comment">// Debug   = println!("{:?}", point)  - like console.log</span>
+<span class="comment">// Clone   = point.clone()            - explicit copy</span>
+<span class="comment">// Copy    = auto-copy on assignment  - no .clone() needed</span>
+<span class="comment">// PartialEq = point1 == point2       - equality comparison</span></code></pre>
+
+    <h2 id="ownership">4. Ownership & Borrowing</h2>
+
+    <p>This is THE big concept in Rust. It's how Rust avoids garbage collection while preventing memory bugs.</p>
+
+    <div class="concept">
+        <h4>The Three Rules</h4>
+        <ol>
+            <li>Each value has exactly ONE owner</li>
+            <li>When the owner goes out of scope, the value is dropped (freed)</li>
+            <li>You can <em>borrow</em> references without taking ownership</li>
+        </ol>
+    </div>
+
+    <h3>Ownership Transfer (Move)</h3>
+<pre><code><span class="keyword">let</span> s1 = <span class="type">String</span>::<span class="function">from</span>(<span class="string">"hello"</span>);
+<span class="keyword">let</span> s2 = s1;  <span class="comment">// s1 is MOVED to s2</span>
+<span class="comment">// println!("{}", s1);  // ERROR! s1 is no longer valid</span>
+<span class="function">println!</span>(<span class="string">"{}"</span>, s2);  <span class="comment">// OK</span></code></pre>
+
+    <h3>Borrowing with References</h3>
+<pre><code><span class="keyword">fn</span> <span class="function">print_length</span>(s: &<span class="type">String</span>) {  <span class="comment">// borrows, doesn't own</span>
+    <span class="function">println!</span>(<span class="string">"Length: {}"</span>, s.<span class="function">len</span>());
+}  <span class="comment">// s goes out of scope, but nothing is dropped</span>
+
+<span class="keyword">let</span> my_string = <span class="type">String</span>::<span class="function">from</span>(<span class="string">"hello"</span>);
+<span class="function">print_length</span>(&my_string);  <span class="comment">// borrow with &</span>
+<span class="function">println!</span>(<span class="string">"{}"</span>, my_string);  <span class="comment">// still valid!</span></code></pre>
+
+    <h3>In Our Code</h3>
+<pre><code><span class="comment">// From clip.rs - we borrow the polygon, don't take ownership</span>
+<span class="keyword">pub fn</span> <span class="function">point_in_polygon</span>(x: <span class="type">f64</span>, y: <span class="type">f64</span>, polygon: &[<span class="type">Point</span>]) -> <span class="type">bool</span> {
+    <span class="comment">//                                    ^^^^^^^^^ borrowed slice</span>
+    <span class="comment">// We can read polygon, but we don't own it</span>
+    <span class="comment">// The caller still owns their data after this returns</span>
+}</code></pre>
+
+    <div class="callout success">
+        <strong>Why this matters:</strong> The Python version was slow partly because it copied data everywhere. Rust's borrowing lets us pass data without copying, while the compiler guarantees safety.
+    </div>
+
+    <h2 id="enums">5. Enums & Pattern Matching</h2>
+
+    <p>Rust enums are way more powerful than JS/TS enums. They can hold data!</p>
+
+    <h3>Simple Enum (like TypeScript)</h3>
+<pre><code><span class="comment">// From patterns/mod.rs</span>
+<span class="keyword">pub enum</span> <span class="type">Pattern</span> {
+    Lines,
+    Crosshatch,
+    Zigzag,
+    Wiggle,
+    Spiral,
+    Fermat,
+    Concentric,
+    Radial,
+    Honeycomb,
+    Scribble,      <span class="comment">// stub</span>
+    Crossspiral,   <span class="comment">// stub</span>
+    Hilbert,       <span class="comment">// stub</span>
+    Gyroid,        <span class="comment">// stub</span>
+}</code></pre>
+
+    <h3>Pattern Matching with match</h3>
+<pre><code><span class="comment">// You MUST handle every variant - compiler enforces this!</span>
+<span class="keyword">fn</span> <span class="function">generate_pattern</span>(pattern: <span class="type">Pattern</span>, polygon: &<span class="type">Polygon</span>, spacing: <span class="type">f64</span>, angle: <span class="type">f64</span>) -> <span class="type">Vec</span>&lt;<span class="type">Line</span>&gt; {
+    <span class="keyword">match</span> pattern {
+        <span class="type">Pattern</span>::Lines => <span class="function">generate_lines_fill</span>(polygon, spacing, angle),
+        <span class="type">Pattern</span>::Crosshatch => <span class="function">generate_crosshatch_fill</span>(polygon, spacing, angle),
+        <span class="type">Pattern</span>::Zigzag => <span class="function">generate_zigzag_fill</span>(polygon, spacing, angle, spacing),
+        <span class="comment">// ... every variant must be handled</span>
+    }
+}</code></pre>
+
+    <div class="concept">
+        <h4>Exhaustiveness Checking</h4>
+        <p>If you add a new variant to the enum, the compiler will ERROR on every <code>match</code> that doesn't handle it. No more forgetting to update switch statements!</p>
+    </div>
+
+    <h2 id="option">6. Option & Result</h2>
+
+    <p>Rust has no <code>null</code> and no exceptions. Instead, it uses types to represent "might not exist" and "might fail".</p>
+
+    <h3>Option&lt;T&gt; - Maybe a Value</h3>
+<pre><code><span class="keyword">enum</span> <span class="type">Option</span>&lt;T&gt; {
+    <span class="type">Some</span>(T),   <span class="comment">// has a value</span>
+    <span class="type">None</span>,      <span class="comment">// no value</span>
+}
+
+<span class="comment">// From our code:</span>
+<span class="keyword">impl</span> <span class="type">Pattern</span> {
+    <span class="keyword">pub fn</span> <span class="function">from_name</span>(name: &<span class="type">str</span>) -> <span class="type">Option</span>&lt;<span class="type">Pattern</span>&gt; {
+        <span class="keyword">match</span> name.<span class="function">to_lowercase</span>().<span class="function">as_str</span>() {
+            <span class="string">"lines"</span> => <span class="type">Some</span>(<span class="type">Pattern</span>::Lines),
+            <span class="string">"crosshatch"</span> => <span class="type">Some</span>(<span class="type">Pattern</span>::Crosshatch),
+            <span class="comment">// ...</span>
+            _ => <span class="type">None</span>,  <span class="comment">// unknown pattern name</span>
+        }
+    }
+}</code></pre>
+
+    <h3>Handling Option</h3>
+<pre><code><span class="comment">// unwrap_or_else: provide a fallback action</span>
+<span class="keyword">let</span> pattern = <span class="type">Pattern</span>::<span class="function">from_name</span>(pattern_name).<span class="function">unwrap_or_else</span>(|| {
+    <span class="macro">eprintln!</span>(<span class="string">"Unknown pattern: {}"</span>, pattern_name);
+    std::process::<span class="function">exit</span>(<span class="number">1</span>);
+});
+
+<span class="comment">// if-let: only do something if it's Some</span>
+<span class="keyword">if let</span> <span class="type">Some</span>(viewbox) = <span class="function">extract_viewbox</span>(&svg_content) {
+    <span class="function">println!</span>(<span class="string">"viewBox: {}"</span>, viewbox);
+}</code></pre>
+
+    <h3>Result&lt;T, E&gt; - Success or Error</h3>
+<pre><code><span class="keyword">enum</span> <span class="type">Result</span>&lt;T, E&gt; {
+    <span class="type">Ok</span>(T),    <span class="comment">// success with value</span>
+    <span class="type">Err</span>(E),   <span class="comment">// error with details</span>
+}
+
+<span class="comment">// From svg.rs:</span>
+<span class="keyword">pub fn</span> <span class="function">extract_polygons_from_svg</span>(content: &<span class="type">str</span>) -> <span class="type">Result</span>&lt;<span class="type">Vec</span>&lt;<span class="type">Polygon</span>&gt;, <span class="type">SvgError</span>&gt; {
+    <span class="comment">// Returns Ok(polygons) or Err(error)</span>
+}</code></pre>
+
+    <h3>The ? Operator - Error Propagation</h3>
+<pre><code><span class="comment">// Instead of:</span>
+<span class="keyword">let</span> result = <span class="function">might_fail</span>();
+<span class="keyword">let</span> value = <span class="keyword">match</span> result {
+    <span class="type">Ok</span>(v) => v,
+    <span class="type">Err</span>(e) => <span class="keyword">return</span> <span class="type">Err</span>(e),
+};
+
+<span class="comment">// Just write:</span>
+<span class="keyword">let</span> value = <span class="function">might_fail</span>()?;  <span class="comment">// auto-returns Err if it fails</span></code></pre>
+
+    <div class="callout success">
+        <strong>No try/catch!</strong> Errors are just values. You handle them with pattern matching or propagate them with <code>?</code>. The compiler ensures you don't forget.
+    </div>
+
+    <h2 id="modules">7. Modules & Visibility</h2>
+
+    <p>Unlike Node.js where everything in a file is importable, Rust requires explicit exports.</p>
+
+    <h3>Declaring Modules</h3>
+<pre><code><span class="comment">// In lib.rs - declare what modules exist</span>
+<span class="keyword">pub mod</span> clip;      <span class="comment">// load from clip.rs, make it public</span>
+<span class="keyword">pub mod</span> geometry;
+<span class="keyword">pub mod</span> hatch;
+<span class="keyword">pub mod</span> patterns;
+<span class="keyword">pub mod</span> svg;
+
+<span class="comment">// Re-export commonly used items at the crate root</span>
+<span class="keyword">pub use</span> geometry::{Line, Point, Polygon};
+<span class="keyword">pub use</span> patterns::Pattern;</code></pre>
+
+    <h3>Visibility Keywords</h3>
+    <table>
+        <tr><th>Keyword</th><th>Meaning</th></tr>
+        <tr><td>(nothing)</td><td>Private to this module</td></tr>
+        <tr><td><code>pub</code></td><td>Public to everyone</td></tr>
+        <tr><td><code>pub(crate)</code></td><td>Public within this crate only</td></tr>
+    </table>
+
+    <h3>Using Items</h3>
+<pre><code><span class="comment">// In main.rs - import from our library</span>
+<span class="keyword">use</span> rat_king_core::{
+    extract_polygons_from_svg, Line, Pattern, Polygon,
+    patterns::{
+        generate_lines_fill, generate_crosshatch_fill,
+        <span class="comment">// ...</span>
+    },
+};</code></pre>
+
+    <h2 id="iterators">8. Iterators</h2>
+
+    <p>Rust iterators are like JavaScript array methods, but lazy and zero-cost.</p>
+
+    <div class="comparison">
+        <div>
+            <h5>JavaScript</h5>
+<pre><code>points
+  .<span class="function">filter</span>(p => p.x > 0)
+  .<span class="function">map</span>(p => p.x * 2)
+  .<span class="function">reduce</span>((a, b) => a + b, 0)</code></pre>
+        </div>
+        <div>
+            <h5>Rust</h5>
+<pre><code>points
+  .<span class="function">iter</span>()
+  .<span class="function">filter</span>(|p| p.x > 0.0)
+  .<span class="function">map</span>(|p| p.x * 2.0)
+  .<span class="function">sum</span>()</code></pre>
+        </div>
+    </div>
+
+    <h3>Common Iterator Methods</h3>
+    <table>
+        <tr><th>Method</th><th>What it does</th></tr>
+        <tr><td><code>.iter()</code></td><td>Start iterating (borrowed)</td></tr>
+        <tr><td><code>.into_iter()</code></td><td>Start iterating (owned, consumes)</td></tr>
+        <tr><td><code>.map(|x| ...)</code></td><td>Transform each item</td></tr>
+        <tr><td><code>.filter(|x| ...)</code></td><td>Keep items matching predicate</td></tr>
+        <tr><td><code>.collect()</code></td><td>Gather into a collection (Vec, etc)</td></tr>
+        <tr><td><code>.enumerate()</code></td><td>Add index: (0, item), (1, item)...</td></tr>
+        <tr><td><code>.zip(other)</code></td><td>Pair up with another iterator</td></tr>
+    </table>
+
+    <h3>From Our Code</h3>
+<pre><code><span class="comment">// From honeycomb.rs - transform hex angles to offsets</span>
+<span class="keyword">let</span> hex_offsets: <span class="type">Vec</span>&lt;(<span class="type">f64</span>, <span class="type">f64</span>)&gt; = (<span class="number">0</span>..<span class="number">6</span>)
+    .<span class="function">map</span>(|i| {
+        <span class="keyword">let</span> hex_angle = PI / <span class="number">3.0</span> * i <span class="keyword">as</span> <span class="type">f64</span>;
+        (hex_size * hex_angle.<span class="function">cos</span>(), hex_size * hex_angle.<span class="function">sin</span>())
+    })
+    .<span class="function">collect</span>();
+
+<span class="comment">// From clip.rs - find minimum by distance</span>
+intersections
+    .<span class="function">iter</span>()
+    .<span class="function">min_by</span>(|a, b| {
+        <span class="keyword">let</span> da = (a.<span class="number">0</span> - x).<span class="function">powi</span>(<span class="number">2</span>) + (a.<span class="number">1</span> - y).<span class="function">powi</span>(<span class="number">2</span>);
+        <span class="keyword">let</span> db = (b.<span class="number">0</span> - x).<span class="function">powi</span>(<span class="number">2</span>) + (b.<span class="number">1</span> - y).<span class="function">powi</span>(<span class="number">2</span>);
+        da.<span class="function">partial_cmp</span>(&db).<span class="function">unwrap</span>()
+    })</code></pre>
+
+    <h2 id="actual">9. The Actual Code We Wrote</h2>
+
+    <p>Now let's see how all these concepts come together in rat-king.</p>
+
+    <h3>geometry.rs - Core Types</h3>
+<pre><code><span class="comment">/// A 2D point.</span>
+<span class="macro">#[derive(Debug, Clone, Copy, PartialEq)]</span>
+<span class="keyword">pub struct</span> <span class="type">Point</span> {
+    <span class="keyword">pub</span> x: <span class="type">f64</span>,
+    <span class="keyword">pub</span> y: <span class="type">f64</span>,
+}
+
+<span class="keyword">impl</span> <span class="type">Point</span> {
+    <span class="keyword">pub fn</span> <span class="function">new</span>(x: <span class="type">f64</span>, y: <span class="type">f64</span>) -> <span class="type">Self</span> {
+        <span class="type">Self</span> { x, y }
+    }
+}
+
+<span class="comment">/// A line segment between two points.</span>
+<span class="macro">#[derive(Debug, Clone, Copy)]</span>
+<span class="keyword">pub struct</span> <span class="type">Line</span> {
+    <span class="keyword">pub</span> x1: <span class="type">f64</span>,
+    <span class="keyword">pub</span> y1: <span class="type">f64</span>,
+    <span class="keyword">pub</span> x2: <span class="type">f64</span>,
+    <span class="keyword">pub</span> y2: <span class="type">f64</span>,
+}
+
+<span class="comment">/// A polygon with outer boundary and optional holes.</span>
+<span class="keyword">pub struct</span> <span class="type">Polygon</span> {
+    <span class="keyword">pub</span> outer: <span class="type">Vec</span>&lt;<span class="type">Point</span>&gt;,
+    <span class="keyword">pub</span> holes: <span class="type">Vec</span>&lt;<span class="type">Vec</span>&lt;<span class="type">Point</span>&gt;&gt;,
+}</code></pre>
+
+    <h3>clip.rs - Point-in-Polygon (Ray Casting)</h3>
+<pre><code><span class="comment">/// Check if a point is inside a polygon using ray casting.</span>
+<span class="keyword">pub fn</span> <span class="function">point_in_polygon</span>(x: <span class="type">f64</span>, y: <span class="type">f64</span>, polygon: &[<span class="type">Point</span>]) -> <span class="type">bool</span> {
+    <span class="keyword">let</span> n = polygon.<span class="function">len</span>();
+    <span class="keyword">if</span> n < <span class="number">3</span> {
+        <span class="keyword">return false</span>;
+    }
+
+    <span class="keyword">let mut</span> inside = <span class="keyword">false</span>;
+    <span class="keyword">let mut</span> j = n - <span class="number">1</span>;
+
+    <span class="keyword">for</span> i <span class="keyword">in</span> <span class="number">0</span>..n {
+        <span class="keyword">let</span> pi = &polygon[i];
+        <span class="keyword">let</span> pj = &polygon[j];
+
+        <span class="comment">// Ray casting: count crossings</span>
+        <span class="keyword">if</span> ((pi.y > y) != (pj.y > y))
+            && (x < (pj.x - pi.x) * (y - pi.y) / (pj.y - pi.y) + pi.x)
+        {
+            inside = !inside;
+        }
+        j = i;
+    }
+
+    inside
+}</code></pre>
+
+    <h3>hatch.rs - Line Generation</h3>
+<pre><code><span class="comment">/// Generate parallel hatch lines across a polygon's bounding box.</span>
+<span class="keyword">pub fn</span> <span class="function">generate_hatch_lines</span>(
+    polygon: &<span class="type">Polygon</span>,
+    spacing: <span class="type">f64</span>,
+    angle_degrees: <span class="type">f64</span>,
+) -> <span class="type">Vec</span>&lt;<span class="type">Line</span>&gt; {
+    <span class="keyword">let</span> outer = &polygon.outer;
+    <span class="keyword">if</span> outer.<span class="function">len</span>() < <span class="number">3</span> {
+        <span class="keyword">return</span> <span class="type">Vec</span>::<span class="function">new</span>();
+    }
+
+    <span class="comment">// Get bounding box</span>
+    <span class="keyword">let</span> <span class="type">Some</span>((min_x, min_y, max_x, max_y)) = polygon.<span class="function">bounding_box</span>() <span class="keyword">else</span> {
+        <span class="keyword">return</span> <span class="type">Vec</span>::<span class="function">new</span>();
+    };
+
+    <span class="comment">// Convert angle and generate lines...</span>
+    <span class="comment">// (generates parallel lines, clips to polygon)</span>
+}</code></pre>
+
+    <h3>The Pattern Generator Loop (main.rs)</h3>
+<pre><code><span class="comment">// For each polygon in the SVG...</span>
+<span class="keyword">for</span> polygon <span class="keyword">in</span> &polygons {
+    <span class="comment">// Generate pattern lines clipped to this polygon</span>
+    <span class="keyword">let</span> lines = <span class="function">generate_pattern</span>(pattern, polygon, spacing, angle);
+
+    <span class="comment">// Add to output collection</span>
+    all_lines.<span class="function">extend</span>(lines);
+}</code></pre>
+
+    <h2>Performance: Why Rust is Fast</h2>
+
+    <div class="callout success">
+        <strong>Results: 200x speedup</strong><br>
+        Python (Shapely): ~32,000ms for 314 polygons<br>
+        Rust: ~159ms for the same data
+    </div>
+
+    <p>Why?</p>
+    <ul>
+        <li><strong>No garbage collector</strong> - memory is freed instantly when values go out of scope</li>
+        <li><strong>Zero-cost abstractions</strong> - iterators compile to the same code as manual loops</li>
+        <li><strong>No runtime overhead</strong> - no interpreter, no JIT warmup</li>
+        <li><strong>Borrowing</strong> - we pass references instead of copying data</li>
+        <li><strong>LLVM optimization</strong> - the same optimizer as Clang/Swift/etc</li>
+    </ul>
+
+    <h2>Running the Code</h2>
+
+<pre><code><span class="comment"># Navigate to crates directory</span>
+<span class="keyword">cd</span> /Users/mgilbert/Code/rat-king/crates
+
+<span class="comment"># Run tests</span>
+cargo test
+
+<span class="comment"># Build release binary</span>
+cargo build --release
+
+<span class="comment"># List patterns</span>
+./target/release/rat-king-cli patterns
+
+<span class="comment"># Generate filled SVG</span>
+./target/release/rat-king-cli fill ../test_assets/essex.svg -p lines -o output.svg
+
+<span class="comment"># Benchmark</span>
+./target/release/rat-king-cli benchmark ../test_assets/essex.svg -p crosshatch</code></pre>
+
+    <h2>Next Steps</h2>
+
+    <ol>
+        <li>Read through <code>crates/rat-king-core/src/geometry.rs</code> - it's the simplest file</li>
+        <li>Look at <code>clip.rs</code> to see the point-in-polygon algorithm</li>
+        <li>Check out a pattern file like <code>patterns/zigzag.rs</code></li>
+        <li>Try modifying a parameter and running <code>cargo build</code> - see the compiler catch errors!</li>
+    </ol>
+
+    <div class="callout">
+        <strong>The Rust Book:</strong> <a href="https://doc.rust-lang.org/book/" style="color: var(--accent)">https://doc.rust-lang.org/book/</a><br>
+        Free, official, comprehensive. Chapters 1-10 cover everything you need.
+    </div>
+
+    <p style="margin-top: 3rem; color: var(--text-dim); text-align: center;">
+        Generated for rat-king project - December 2024
+    </p>
+</body>
+</html>

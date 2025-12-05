@@ -16,7 +16,9 @@ use rat_king_core::{
         generate_zigzag_fill, generate_wiggle_fill,
         generate_spiral_fill, generate_fermat_fill,
         generate_concentric_fill, generate_radial_fill,
-        generate_honeycomb_fill,
+        generate_honeycomb_fill, generate_scribble_fill,
+        generate_crossspiral_fill, generate_hilbert_fill,
+        generate_gyroid_fill,
     },
 };
 
@@ -44,20 +46,32 @@ fn main() {
 }
 
 fn print_usage(prog: &str) {
-    eprintln!("rat-king - fast pattern generation for SVG polygons");
+    eprintln!("rat-king-cli - fast pattern generation for SVG polygons");
     eprintln!();
     eprintln!("Usage:");
     eprintln!("  {} fill <svg_file> -p <pattern> [-o <output.svg>] [-s <spacing>] [-a <angle>]", prog);
     eprintln!("  {} benchmark <svg_file> [-p <pattern>]", prog);
     eprintln!("  {} patterns", prog);
     eprintln!();
-    eprintln!("Patterns: lines, crosshatch, zigzag, wiggle, spiral, fermat, concentric, radial, honeycomb");
+    eprintln!("Patterns:");
+    eprintln!("  Implemented: lines, crosshatch, zigzag, wiggle, spiral, fermat, concentric, radial, honeycomb");
+    eprintln!("  Stubs:       scribble, crossspiral, hilbert, gyroid");
+    eprintln!();
+    eprintln!("Options:");
+    eprintln!("  -p, --pattern <name>   Pattern to use (default: lines)");
+    eprintln!("  -o, --output <file>    Output SVG file (default: stdout)");
+    eprintln!("  -s, --spacing <num>    Line spacing in units (default: 2.5)");
+    eprintln!("  -a, --angle <degrees>  Pattern angle (default: 45)");
 }
 
 fn cmd_patterns() {
     println!("Available patterns:");
     for pattern in Pattern::all() {
-        println!("  {}", pattern.name());
+        if pattern.is_stub() {
+            println!("  {} (stub)", pattern.name());
+        } else {
+            println!("  {}", pattern.name());
+        }
     }
 }
 
@@ -230,6 +244,11 @@ fn generate_pattern(pattern: Pattern, polygon: &Polygon, spacing: f64, angle: f6
         Pattern::Concentric => generate_concentric_fill(polygon, spacing, true),
         Pattern::Radial => generate_radial_fill(polygon, 10.0, angle), // 10 degrees between rays
         Pattern::Honeycomb => generate_honeycomb_fill(polygon, spacing * 4.0, angle),
+        // Stub patterns - these output warnings and fall back to simpler patterns
+        Pattern::Scribble => generate_scribble_fill(polygon, spacing, angle),
+        Pattern::Crossspiral => generate_crossspiral_fill(polygon, spacing, angle),
+        Pattern::Hilbert => generate_hilbert_fill(polygon, spacing, angle),
+        Pattern::Gyroid => generate_gyroid_fill(polygon, spacing, angle),
     }
 }
 
