@@ -93,10 +93,8 @@ fn extract_from_node(node: &usvg::Node, polygons: &mut Vec<Polygon>) {
             extract_from_group(group, polygons);
         }
         usvg::Node::Path(path) => {
-            // Extract polygon from path data
-            if let Some(polygon) = path_to_polygon(path) {
-                polygons.push(polygon);
-            }
+            // Extract all polygons from path data (handles compound paths)
+            polygons.extend(path_to_polygons(path));
         }
         // Ignore text, images, etc.
         _ => {}
@@ -108,10 +106,14 @@ fn extract_from_node(node: &usvg::Node, polygons: &mut Vec<Polygon>) {
 /// 0.1 is good for plotters (sub-pixel accuracy at typical scales).
 const CURVE_TOLERANCE: f32 = 0.1;
 
-/// Convert a usvg path to our Polygon type.
+/// Convert a usvg path to polygons.
+///
+/// A single SVG path can contain multiple subpaths (separated by MoveTo commands).
+/// Each subpath becomes a separate polygon. This properly handles compound paths
+/// like stamps with multiple circles or text with multiple characters.
 ///
 /// Properly flattens Bézier curves using lyon_geom for accurate polygon boundaries.
-fn path_to_polygon(path: &usvg::Path) -> Option<Polygon> {
+fn path_to_polygons(path: &usvg::Path) -> Vec<Polygon> {
     let data = path.data();
     let id = path.id();
 
@@ -120,16 +122,47 @@ fn path_to_polygon(path: &usvg::Path) -> Option<Polygon> {
     // We need to parse SVG path commands (M, L, C, Z, etc.)
     // usvg already gives us absolute coordinates (no relative commands!)
 
+    let mut polygons = Vec::new();
     let mut points = Vec::new();
     let mut last_point: Option<(f32, f32)> = None;
+    let mut subpath_index = 0;
+
+    // Helper to finalize current subpath as a polygon
+    let finalize_subpath = |points: &mut Vec<Point>, subpath_idx: usize| {
+        // Remove duplicate consecutive points that can occur from curve flattening
+        if points.len() >= 2 {
+            points.dedup_by(|a, b| {
+                let dx = (a.x - b.x).abs();
+                let dy = (a.y - b.y).abs();
+                dx < 1e-6 && dy < 1e-6
+            });
+        }
+
+        if points.len() >= 3 {
+            // Preserve the element's ID, appending subpath index for compound paths
+            let polygon_id = if id.is_empty() {
+                None
+            } else if subpath_idx == 0 {
+                Some(id.to_string())
+            } else {
+                Some(format!("{}_{}", id, subpath_idx))
+            };
+            let polygon = Polygon::with_id(std::mem::take(points), polygon_id);
+            return Some(polygon);
+        }
+        points.clear();
+        None
+    };
 
     for cmd in data.segments() {
         match cmd {
             usvg::tiny_skia_path::PathSegment::MoveTo(p) => {
-                // Start of new subpath - if we have points, that's a polygon
+                // Start of new subpath - finalize previous if any
                 if !points.is_empty() {
-                    // TODO: handle multiple subpaths (holes?)
-                    break;
+                    if let Some(polygon) = finalize_subpath(&mut points, subpath_index) {
+                        polygons.push(polygon);
+                    }
+                    subpath_index += 1;
                 }
                 points.push(Point::new(p.x as f64, p.y as f64));
                 last_point = Some((p.x, p.y));
@@ -180,31 +213,23 @@ fn path_to_polygon(path: &usvg::Path) -> Option<Polygon> {
                 last_point = Some((p.x, p.y));
             }
             usvg::tiny_skia_path::PathSegment::Close => {
-                // Path is closed - we have a polygon!
+                // Path is closed - finalize this subpath
+                if let Some(polygon) = finalize_subpath(&mut points, subpath_index) {
+                    polygons.push(polygon);
+                }
+                subpath_index += 1;
             }
         }
     }
 
-    // Remove duplicate consecutive points that can occur from curve flattening
-    if points.len() >= 2 {
-        points.dedup_by(|a, b| {
-            let dx = (a.x - b.x).abs();
-            let dy = (a.y - b.y).abs();
-            dx < 1e-6 && dy < 1e-6
-        });
+    // Finalize any remaining points (unclosed path)
+    if !points.is_empty() {
+        if let Some(polygon) = finalize_subpath(&mut points, subpath_index) {
+            polygons.push(polygon);
+        }
     }
 
-    if points.len() >= 3 {
-        // Preserve the element's ID if it has one
-        let polygon_id = if id.is_empty() {
-            None
-        } else {
-            Some(id.to_string())
-        };
-        Some(Polygon::with_id(points, polygon_id))
-    } else {
-        None
-    }
+    polygons
 }
 
 // ============================================================================
