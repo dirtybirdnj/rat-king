@@ -3,9 +3,9 @@
 //! Creates a rectangular grid of horizontal and vertical lines.
 //! Simpler than crosshatch (always 90° cross angle).
 
-use std::f64::consts::PI;
 use crate::geometry::{Line, Polygon};
 use crate::clip::clip_lines_to_polygon;
+use super::util::PatternContext;
 
 /// Generate rectangular grid fill for a polygon.
 ///
@@ -15,49 +15,27 @@ pub fn generate_grid_fill(
     spacing: f64,
     angle_degrees: f64,
 ) -> Vec<Line> {
-    let outer = &polygon.outer;
-    if outer.len() < 3 {
-        return Vec::new();
-    }
-
-    let Some((min_x, min_y, max_x, max_y)) = polygon.bounding_box() else {
+    let Some(ctx) = PatternContext::new(polygon, spacing, angle_degrees) else {
         return Vec::new();
     };
 
-    let center_x = (min_x + max_x) / 2.0;
-    let center_y = (min_y + max_y) / 2.0;
-    let angle_rad = angle_degrees * PI / 180.0;
-
-    // Calculate extended bounds for rotation
-    let diagonal = ((max_x - min_x).powi(2) + (max_y - min_y).powi(2)).sqrt();
-    let padding = diagonal / 2.0 + spacing;
-
+    let padding = ctx.padding();
     let mut lines = Vec::new();
 
-    // Rotate point around center
-    let rotate = |x: f64, y: f64| -> (f64, f64) {
-        let dx = x - center_x;
-        let dy = y - center_y;
-        (
-            center_x + dx * angle_rad.cos() - dy * angle_rad.sin(),
-            center_y + dx * angle_rad.sin() + dy * angle_rad.cos(),
-        )
-    };
-
     // Generate horizontal lines (before rotation)
-    let mut y = center_y - padding;
-    while y <= center_y + padding {
-        let (x1, y1) = rotate(center_x - padding, y);
-        let (x2, y2) = rotate(center_x + padding, y);
+    let mut y = ctx.center.y - padding;
+    while y <= ctx.center.y + padding {
+        let (x1, y1) = ctx.rotate(ctx.center.x - padding, y);
+        let (x2, y2) = ctx.rotate(ctx.center.x + padding, y);
         lines.push(Line::new(x1, y1, x2, y2));
         y += spacing;
     }
 
     // Generate vertical lines (before rotation)
-    let mut x = center_x - padding;
-    while x <= center_x + padding {
-        let (x1, y1) = rotate(x, center_y - padding);
-        let (x2, y2) = rotate(x, center_y + padding);
+    let mut x = ctx.center.x - padding;
+    while x <= ctx.center.x + padding {
+        let (x1, y1) = ctx.rotate(x, ctx.center.y - padding);
+        let (x2, y2) = ctx.rotate(x, ctx.center.y + padding);
         lines.push(Line::new(x1, y1, x2, y2));
         x += spacing;
     }

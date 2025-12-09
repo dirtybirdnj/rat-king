@@ -271,6 +271,48 @@ impl Pattern {
         }
     }
 
+    /// Generate pattern fill lines for a polygon.
+    ///
+    /// This is the main entry point for pattern generation. It applies the
+    /// appropriate spacing multiplier and calls the correct pattern generator.
+    pub fn generate(&self, polygon: &crate::Polygon, spacing: f64, angle: f64) -> Vec<crate::Line> {
+        // Apply pattern-specific spacing multiplier
+        let effective_spacing = spacing * self.spacing_multiplier();
+
+        match self {
+            Pattern::Lines => generate_lines_fill(polygon, spacing, angle),
+            Pattern::Crosshatch => generate_crosshatch_fill(polygon, spacing, angle),
+            Pattern::Zigzag => generate_zigzag_fill(polygon, spacing, angle, spacing),
+            Pattern::Wiggle => generate_wiggle_fill(polygon, spacing, angle, spacing, 0.1),
+            Pattern::Spiral => generate_spiral_fill(polygon, spacing, angle),
+            Pattern::Fermat => generate_fermat_fill(polygon, spacing, angle),
+            Pattern::Concentric => generate_concentric_fill(polygon, spacing, true),
+            Pattern::Radial => generate_radial_fill(polygon, 10.0, angle),
+            Pattern::Honeycomb => generate_honeycomb_fill(polygon, effective_spacing, angle),
+            Pattern::Crossspiral => generate_crossspiral_fill(polygon, spacing, angle),
+            Pattern::Hilbert => generate_hilbert_fill(polygon, spacing, angle),
+            Pattern::Guilloche => generate_guilloche_fill(polygon, spacing, angle),
+            Pattern::Lissajous => generate_lissajous_fill(polygon, spacing, angle),
+            Pattern::Rose => generate_rose_fill(polygon, spacing, angle),
+            Pattern::Phyllotaxis => generate_phyllotaxis_fill(polygon, spacing, angle),
+            Pattern::Scribble => generate_scribble_fill(polygon, spacing, angle),
+            Pattern::Gyroid => generate_gyroid_fill(polygon, spacing, angle),
+            Pattern::Pentagon15 => generate_pentagon15_fill(polygon, spacing * 3.0, angle),
+            Pattern::Pentagon14 => generate_pentagon14_fill(polygon, spacing * 3.0, angle),
+            Pattern::Grid => generate_grid_fill(polygon, effective_spacing, angle),
+            Pattern::Brick => generate_brick_fill(polygon, effective_spacing, angle),
+            Pattern::Truchet => generate_truchet_fill(polygon, effective_spacing, angle),
+            Pattern::Stipple => generate_stipple_fill(polygon, spacing, angle),
+            Pattern::Peano => generate_peano_fill(polygon, spacing, angle),
+            Pattern::Sierpinski => generate_sierpinski_fill(polygon, spacing, angle),
+            Pattern::Diagonal => generate_diagonal_fill(polygon, spacing, angle),
+            Pattern::Herringbone => generate_herringbone_fill(polygon, effective_spacing, angle),
+            Pattern::Stripe => generate_stripe_fill(polygon, effective_spacing, angle),
+            Pattern::Tessellation => generate_tessellation_fill(polygon, spacing, angle),
+            Pattern::Harmonograph => generate_harmonograph_fill(polygon, spacing, angle),
+        }
+    }
+
     /// Parse pattern from string.
     pub fn from_name(name: &str) -> Option<Pattern> {
         match name.to_lowercase().as_str() {

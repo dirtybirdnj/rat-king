@@ -3,9 +3,9 @@
 //! Creates stripes with X lines of Y pen width spaced Z apart.
 //! Useful for creating banded effects with grouped parallel lines.
 
-use std::f64::consts::PI;
 use crate::geometry::{Line, Polygon};
 use crate::clip::clip_lines_to_polygon;
+use super::util::{PatternContext, LineDirection};
 
 /// Configuration for stripe pattern.
 #[derive(Debug, Clone, Copy)]
@@ -57,30 +57,11 @@ pub fn generate_stripe_fill_configured(
     polygon: &Polygon,
     config: &StripeConfig,
 ) -> Vec<Line> {
-    let outer = &polygon.outer;
-    if outer.len() < 3 {
-        return Vec::new();
-    }
-
-    let Some((min_x, min_y, max_x, max_y)) = polygon.bounding_box() else {
+    let Some(ctx) = PatternContext::new(polygon, config.stripe_spacing, config.angle_degrees) else {
         return Vec::new();
     };
 
-    let center_x = (min_x + max_x) / 2.0;
-    let center_y = (min_y + max_y) / 2.0;
-    let angle_rad = config.angle_degrees * PI / 180.0;
-
-    let width = max_x - min_x;
-    let height = max_y - min_y;
-    let diagonal = (width * width + height * height).sqrt();
-
-    // Direction along the lines
-    let cos_a = angle_rad.cos();
-    let sin_a = angle_rad.sin();
-
-    // Direction perpendicular to lines (for spacing)
-    let px = -sin_a;
-    let py = cos_a;
+    let dir = LineDirection::from_degrees(config.angle_degrees);
 
     let mut lines = Vec::new();
 
@@ -89,7 +70,7 @@ pub fn generate_stripe_fill_configured(
     let total_stripe_pitch = stripe_width + config.stripe_spacing;
 
     // Number of stripe groups needed
-    let num_stripes = (diagonal / total_stripe_pitch).ceil() as i32;
+    let num_stripes = (ctx.diagonal / total_stripe_pitch).ceil() as i32;
 
     for stripe_idx in -num_stripes..=num_stripes {
         // Position of stripe group center
@@ -103,14 +84,14 @@ pub fn generate_stripe_fill_configured(
                 * config.line_spacing;
 
             // Calculate line position
-            let cx = center_x + px * line_offset;
-            let cy = center_y + py * line_offset;
+            let cx = ctx.center.x + dir.px * line_offset;
+            let cy = ctx.center.y + dir.py * line_offset;
 
             // Extend line in both directions
-            let x1 = cx - cos_a * diagonal;
-            let y1 = cy - sin_a * diagonal;
-            let x2 = cx + cos_a * diagonal;
-            let y2 = cy + sin_a * diagonal;
+            let x1 = cx - dir.dx * ctx.diagonal;
+            let y1 = cy - dir.dy * ctx.diagonal;
+            let x2 = cx + dir.dx * ctx.diagonal;
+            let y2 = cy + dir.dy * ctx.diagonal;
 
             lines.push(Line::new(x1, y1, x2, y2));
         }

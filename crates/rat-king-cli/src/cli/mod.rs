@@ -9,7 +9,12 @@
 pub mod common;
 pub mod fill;
 pub mod benchmark;
+pub mod harness;
 
-pub use common::{generate_pattern};
+pub use common::generate_pattern;
 pub use fill::cmd_fill;
 pub use benchmark::cmd_benchmark;
+pub use harness::{
+    AnalysisResult, HarnessResult, VisualHarnessReport,
+    analyze_pattern_vs_solid, generate_diff_image,
+};

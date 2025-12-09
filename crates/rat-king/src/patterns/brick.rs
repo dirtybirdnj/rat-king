@@ -3,9 +3,9 @@
 //! Creates a brick/running bond pattern where each row is offset by half.
 //! Classic masonry pattern used in walls and pavements.
 
-use std::f64::consts::PI;
 use crate::geometry::{Line, Polygon};
-use crate::clip::point_in_polygon;
+use crate::clip::clip_lines_to_polygon;
+use super::util::PatternContext;
 
 /// Generate brick pattern fill for a polygon.
 ///
@@ -15,38 +15,18 @@ pub fn generate_brick_fill(
     spacing: f64,
     angle_degrees: f64,
 ) -> Vec<Line> {
-    let outer = &polygon.outer;
-    if outer.len() < 3 {
-        return Vec::new();
-    }
-
-    let Some((min_x, min_y, max_x, max_y)) = polygon.bounding_box() else {
+    let Some(ctx) = PatternContext::new(polygon, spacing, angle_degrees) else {
         return Vec::new();
     };
-
-    let center_x = (min_x + max_x) / 2.0;
-    let center_y = (min_y + max_y) / 2.0;
-    let angle_rad = angle_degrees * PI / 180.0;
 
     // Brick dimensions
     let brick_height = spacing;
     let brick_width = spacing * 2.5; // Standard brick ratio ~2.5:1
 
-    // Calculate extended bounds for rotation
-    let diagonal = ((max_x - min_x).powi(2) + (max_y - min_y).powi(2)).sqrt();
-    let padding = diagonal / 2.0 + brick_width;
+    let padding = ctx.diagonal / 2.0 + brick_width;
+    let (min_x, min_y, max_x, max_y) = ctx.bounds;
 
     let mut lines = Vec::new();
-
-    // Rotate point around center
-    let rotate = |x: f64, y: f64| -> (f64, f64) {
-        let dx = x - center_x;
-        let dy = y - center_y;
-        (
-            center_x + dx * angle_rad.cos() - dy * angle_rad.sin(),
-            center_y + dx * angle_rad.sin() + dy * angle_rad.cos(),
-        )
-    };
 
     // Generate brick pattern
     let mut row = 0;
@@ -57,34 +37,28 @@ pub fn generate_brick_fill(
         let row_offset = if is_odd_row { brick_width / 2.0 } else { 0.0 };
 
         // Horizontal mortar line for this row
-        let (hx1, hy1) = rotate(min_x - padding, y);
-        let (hx2, hy2) = rotate(max_x + padding, y);
+        let (hx1, hy1) = ctx.rotate(min_x - padding, y);
+        let (hx2, hy2) = ctx.rotate(max_x + padding, y);
 
         // Clip horizontal line to polygon
         let h_mid_x = (hx1 + hx2) / 2.0;
         let h_mid_y = (hy1 + hy2) / 2.0;
-        if point_in_polygon(h_mid_x, h_mid_y, outer) {
+        if ctx.point_inside(h_mid_x, h_mid_y) {
             lines.push(Line::new(hx1, hy1, hx2, hy2));
         }
 
         // Vertical mortar joints
         let mut x = min_x - padding + row_offset;
         while x <= max_x + padding {
-            let (vx1, vy1) = rotate(x, y);
-            let (vx2, vy2) = rotate(x, y + brick_height);
+            let (vx1, vy1) = ctx.rotate(x, y);
+            let (vx2, vy2) = ctx.rotate(x, y + brick_height);
 
             // Check if joint midpoint is inside polygon
             let v_mid_x = (vx1 + vx2) / 2.0;
             let v_mid_y = (vy1 + vy2) / 2.0;
 
-            if point_in_polygon(v_mid_x, v_mid_y, outer) {
-                // Check holes
-                let in_hole = polygon.holes.iter().any(|hole| {
-                    point_in_polygon(v_mid_x, v_mid_y, hole)
-                });
-                if !in_hole {
-                    lines.push(Line::new(vx1, vy1, vx2, vy2));
-                }
+            if ctx.point_inside(v_mid_x, v_mid_y) {
+                lines.push(Line::new(vx1, vy1, vx2, vy2));
             }
 
             x += brick_width;
@@ -95,7 +69,7 @@ pub fn generate_brick_fill(
     }
 
     // Clip all lines to polygon (for horizontal lines extending outside)
-    crate::clip::clip_lines_to_polygon(&lines, polygon)
+    clip_lines_to_polygon(&lines, polygon)
 }
 
 #[cfg(test)]
