@@ -212,6 +212,50 @@ impl Polygon {
             (width * width + height * height).sqrt()
         })
     }
+
+    /// Calculate signed area using the shoelace formula.
+    ///
+    /// Returns:
+    /// - Positive value for counter-clockwise winding
+    /// - Negative value for clockwise winding
+    /// - The absolute value is the polygon area
+    ///
+    /// This is useful for determining winding direction and for
+    /// detecting which polygons are holes (opposite winding from outer).
+    #[inline]
+    pub fn signed_area(&self) -> f64 {
+        signed_area_of_points(&self.outer)
+    }
+
+    /// Check if the outer boundary has clockwise winding.
+    ///
+    /// In SVG coordinate space (Y increases downward):
+    /// - Clockwise winding typically indicates a hole
+    /// - Counter-clockwise winding typically indicates an outer boundary
+    #[inline]
+    pub fn is_clockwise(&self) -> bool {
+        self.signed_area() < 0.0
+    }
+}
+
+/// Calculate signed area of a point sequence using the shoelace formula.
+///
+/// Returns:
+/// - Positive value for counter-clockwise winding
+/// - Negative value for clockwise winding
+pub fn signed_area_of_points(points: &[Point]) -> f64 {
+    let n = points.len();
+    if n < 3 {
+        return 0.0;
+    }
+
+    let mut area = 0.0;
+    for i in 0..n {
+        let j = (i + 1) % n;
+        area += points[i].x * points[j].y;
+        area -= points[j].x * points[i].y;
+    }
+    area / 2.0
 }
 
 // ============================================================================
@@ -309,5 +353,48 @@ mod tests {
 
         assert!(poly.point_in_body(5.0, 5.0, pip));
         assert!(!poly.point_in_body(15.0, 5.0, pip));
+    }
+
+    #[test]
+    fn signed_area_ccw_positive() {
+        // Counter-clockwise square: positive area
+        let poly = Polygon::new(vec![
+            Point::new(0.0, 0.0),
+            Point::new(10.0, 0.0),
+            Point::new(10.0, 10.0),
+            Point::new(0.0, 10.0),
+        ]);
+        let area = poly.signed_area();
+        assert!(area > 0.0, "CCW polygon should have positive signed area, got {}", area);
+        assert!((area - 100.0).abs() < 1e-10, "10x10 square should have area 100, got {}", area);
+        assert!(!poly.is_clockwise(), "CCW polygon should not be clockwise");
+    }
+
+    #[test]
+    fn signed_area_cw_negative() {
+        // Clockwise square: negative area
+        let poly = Polygon::new(vec![
+            Point::new(0.0, 0.0),
+            Point::new(0.0, 10.0),
+            Point::new(10.0, 10.0),
+            Point::new(10.0, 0.0),
+        ]);
+        let area = poly.signed_area();
+        assert!(area < 0.0, "CW polygon should have negative signed area, got {}", area);
+        assert!((area + 100.0).abs() < 1e-10, "10x10 square should have area -100, got {}", area);
+        assert!(poly.is_clockwise(), "CW polygon should be clockwise");
+    }
+
+    #[test]
+    fn signed_area_triangle() {
+        // CCW triangle
+        let poly = Polygon::new(vec![
+            Point::new(0.0, 0.0),
+            Point::new(10.0, 0.0),
+            Point::new(5.0, 10.0),
+        ]);
+        let area = poly.signed_area();
+        assert!(area > 0.0, "CCW triangle should have positive area");
+        assert!((area - 50.0).abs() < 1e-10, "Triangle area should be 50, got {}", area);
     }
 }

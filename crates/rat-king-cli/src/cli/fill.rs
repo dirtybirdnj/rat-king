@@ -7,12 +7,13 @@ use std::time::Instant;
 use serde::Serialize;
 
 use rat_king::{
+    chain_lines, ChainConfig, ChainStats,
     extract_polygons_from_svg, Line, Pattern, Polygon,
     order_polygons, calculate_travel_distance, OrderingStrategy,
     SketchyConfig, sketchify_lines, polygon_to_lines,
 };
 
-use super::common::{OutputFormat, generate_pattern, lines_to_svg};
+use super::common::{OutputFormat, generate_pattern, lines_to_svg, chains_to_svg};
 
 /// A line in JSON output format.
 #[derive(Serialize)]
@@ -21,6 +22,25 @@ struct JsonLine {
     y1: f64,
     x2: f64,
     y2: f64,
+}
+
+/// A point in JSON output format.
+#[derive(Serialize)]
+struct JsonPoint {
+    x: f64,
+    y: f64,
+}
+
+/// A chain (polyline) in JSON output format.
+type JsonChain = Vec<JsonPoint>;
+
+/// Chaining statistics for JSON output.
+#[derive(Serialize)]
+struct JsonChainStats {
+    input_lines: usize,
+    output_chains: usize,
+    reduction_percent: f64,
+    avg_chain_length: f64,
 }
 
 /// A shape with its lines in JSON output (per-polygon mode).
@@ -32,10 +52,12 @@ struct JsonShape {
     lines: Vec<JsonLine>,
 }
 
-/// JSON output with all lines (flat mode).
+/// JSON output with all lines (flat mode) - includes both lines and chains.
 #[derive(Serialize)]
 struct JsonOutputFlat {
     lines: Vec<JsonLine>,
+    chains: Vec<JsonChain>,
+    chain_stats: JsonChainStats,
 }
 
 /// JSON output with per-shape grouping.
@@ -56,6 +78,8 @@ pub fn cmd_fill(args: &[String]) {
     let mut order_strategy = OrderingStrategy::NearestNeighbor;
     let mut include_strokes = false;
     let mut sketchy_config: Option<SketchyConfig> = None;
+    let mut raw_output = false;  // --raw: output individual lines instead of chained polylines
+    let mut chain_tolerance = 0.1;  // --chain-tolerance: max distance to consider endpoints connected
 
     let mut i = 0;
     while i < args.len() {
@@ -169,6 +193,15 @@ pub fn cmd_fill(args: &[String]) {
                     }
                 }
             }
+            "--raw" => {
+                raw_output = true;
+            }
+            "--chain-tolerance" => {
+                i += 1;
+                if i < args.len() {
+                    chain_tolerance = args[i].parse().unwrap_or(0.1);
+                }
+            }
             "-h" | "--help" => {
                 print_usage();
                 return;
@@ -212,7 +245,11 @@ pub fn cmd_fill(args: &[String]) {
     let polygons = extract_polygons_from_svg(&svg_content)
         .expect("Failed to parse SVG");
 
-    eprintln!("Loaded {} polygons", polygons.len());
+    let with_holes: Vec<_> = polygons.iter().filter(|p| !p.holes.is_empty()).collect();
+    eprintln!("Loaded {} polygons ({} with holes, {} total holes)",
+        polygons.len(),
+        with_holes.len(),
+        with_holes.iter().map(|p| p.holes.len()).sum::<usize>());
 
     // Calculate travel optimization
     let order = order_polygons(&polygons, order_strategy);
@@ -288,8 +325,14 @@ pub fn cmd_fill(args: &[String]) {
             }
             let all_lines = apply_sketchy(all_lines);
 
+            // Chain lines for JSON output (includes both raw lines and chains)
+            let chain_config = ChainConfig::with_tolerance(chain_tolerance);
+            let chains = chain_lines(&all_lines, &chain_config);
+            let stats = ChainStats::from_chains(all_lines.len(), &chains);
+
             let elapsed = start.elapsed();
-            eprintln!("Generated {} lines in {:?}", all_lines.len(), elapsed);
+            eprintln!("Generated {} lines -> {} chains ({:.0}% reduction) in {:?}",
+                all_lines.len(), chains.len(), stats.reduction_ratio * 100.0, elapsed);
             if sketchy_config.is_some() {
                 eprintln!("Applied sketchy effect");
             }
@@ -298,7 +341,22 @@ pub fn cmd_fill(args: &[String]) {
                 x1: l.x1, y1: l.y1, x2: l.x2, y2: l.y2,
             }).collect();
 
-            serde_json::to_string(&JsonOutputFlat { lines: json_lines }).expect("Failed to serialize JSON")
+            let json_chains: Vec<JsonChain> = chains.iter().map(|chain| {
+                chain.iter().map(|p| JsonPoint { x: p.x, y: p.y }).collect()
+            }).collect();
+
+            let json_stats = JsonChainStats {
+                input_lines: stats.input_lines,
+                output_chains: stats.output_chains,
+                reduction_percent: stats.reduction_ratio * 100.0,
+                avg_chain_length: stats.avg_chain_length,
+            };
+
+            serde_json::to_string(&JsonOutputFlat {
+                lines: json_lines,
+                chains: json_chains,
+                chain_stats: json_stats,
+            }).expect("Failed to serialize JSON")
         }
         (OutputFormat::Svg, _) => {
             let mut all_lines: Vec<Line> = Vec::new();
@@ -311,12 +369,28 @@ pub fn cmd_fill(args: &[String]) {
             let all_lines = apply_sketchy(all_lines);
 
             let elapsed = start.elapsed();
-            eprintln!("Generated {} lines in {:?}", all_lines.len(), elapsed);
-            if sketchy_config.is_some() {
-                eprintln!("Applied sketchy effect");
-            }
 
-            lines_to_svg(&all_lines, &svg_content)
+            if raw_output {
+                // --raw: output individual <line> elements
+                eprintln!("Generated {} lines in {:?}", all_lines.len(), elapsed);
+                if sketchy_config.is_some() {
+                    eprintln!("Applied sketchy effect");
+                }
+                lines_to_svg(&all_lines, &svg_content)
+            } else {
+                // Default: chain lines into polylines for smaller output
+                let chain_config = ChainConfig::with_tolerance(chain_tolerance);
+                let chains = chain_lines(&all_lines, &chain_config);
+                let stats = ChainStats::from_chains(all_lines.len(), &chains);
+
+                eprintln!("Generated {} lines -> {} chains ({:.0}% reduction) in {:?}",
+                    all_lines.len(), chains.len(), stats.reduction_ratio * 100.0, elapsed);
+                if sketchy_config.is_some() {
+                    eprintln!("Applied sketchy effect");
+                }
+
+                chains_to_svg(&chains, &svg_content)
+            }
         }
     };
 
@@ -344,6 +418,8 @@ fn print_usage() {
     eprintln!("  --grouped               Group lines by polygon (JSON only)");
     eprintln!("  --no-optimize           Disable travel path optimization");
     eprintln!("  --strokes               Include polygon outlines");
+    eprintln!("  --raw                   Output individual <line> elements (default: chained <polyline>)");
+    eprintln!("  --chain-tolerance <n>   Max distance to chain endpoints (default: 0.1)");
     eprintln!("  --sketchy               Enable hand-drawn effect");
     eprintln!("  --roughness <n>         Sketchy roughness (default: 1.0)");
     eprintln!("  --bowing <n>            Sketchy bowing (default: 1.0)");

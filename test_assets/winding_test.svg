@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">
+  <!-- Test 1: Square with CCW winding (standard outer) - should fill inside -->
+  <path id="ccw_square" fill="#ff0000"
+        d="M 20,20 L 80,20 L 80,80 L 20,80 Z" />
+
+  <!-- Test 2: Square with CW winding (reversed) - should also fill inside with even-odd -->
+  <path id="cw_square" fill="#00ff00"
+        d="M 120,20 L 120,80 L 180,80 L 180,20 Z" />
+
+  <!-- Test 3: Donut - CCW outer, CW hole (SVG convention) -->
+  <!-- This is a compound path where inner should NOT be filled -->
+  <path id="donut" fill="#0000ff"
+        d="M 220,20 L 280,20 L 280,80 L 220,80 Z
+           M 235,35 L 235,65 L 265,65 L 265,35 Z" />
+
+  <!-- Test 4: Ring using fillrule evenodd (standard SVG approach) -->
+  <path id="ring" fill="#ff00ff" fill-rule="evenodd"
+        d="M 320,50
+           m -40,0
+           a 40,40 0 1,0 80,0
+           a 40,40 0 1,0 -80,0 Z
+           M 320,50
+           m -20,0
+           a 20,20 0 1,1 40,0
+           a 20,20 0 1,1 -40,0 Z" />
+</svg>

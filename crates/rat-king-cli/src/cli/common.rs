@@ -1,6 +1,6 @@
 //! Common utilities shared across CLI commands.
 
-use rat_king::{Line, Pattern, Polygon};
+use rat_king::{Chain, Line, Pattern, Polygon};
 
 /// Output format for generated lines.
 #[derive(Clone, Copy, PartialEq)]
@@ -16,7 +16,7 @@ pub fn generate_pattern(pattern: Pattern, polygon: &Polygon, spacing: f64, angle
     pattern.generate(polygon, spacing, angle)
 }
 
-/// Convert lines to SVG output.
+/// Convert lines to SVG output (individual <line> elements).
 pub fn lines_to_svg(lines: &[Line], original_svg: &str) -> String {
     let viewbox = extract_viewbox(original_svg).unwrap_or_else(|| "0 0 1000 1000".to_string());
 
@@ -34,6 +34,41 @@ pub fn lines_to_svg(lines: &[Line], original_svg: &str) -> String {
             "  <line x1=\"{:.2}\" y1=\"{:.2}\" x2=\"{:.2}\" y2=\"{:.2}\"/>\n",
             line.x1, line.y1, line.x2, line.y2
         ));
+    }
+
+    svg.push_str("</g>\n</svg>\n");
+    svg
+}
+
+/// Convert chains to SVG output (polyline elements).
+///
+/// This produces much smaller output than individual lines by chaining
+/// connected line segments into continuous polylines.
+pub fn chains_to_svg(chains: &[Chain], original_svg: &str) -> String {
+    let viewbox = extract_viewbox(original_svg).unwrap_or_else(|| "0 0 1000 1000".to_string());
+
+    let mut svg = String::new();
+    svg.push_str(&format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="{}">
+<g stroke="black" stroke-width="0.5" fill="none">
+"#,
+        viewbox
+    ));
+
+    for chain in chains {
+        if chain.len() < 2 {
+            continue;
+        }
+
+        // Build points string: "x1,y1 x2,y2 x3,y3 ..."
+        let points: String = chain
+            .iter()
+            .map(|p| format!("{:.2},{:.2}", p.x, p.y))
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        svg.push_str(&format!("  <polyline points=\"{}\"/>\n", points));
     }
 
     svg.push_str("</g>\n</svg>\n");

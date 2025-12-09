@@ -11,6 +11,7 @@
 //!
 //! Unlike Node.js, you must explicitly declare every module.
 
+pub mod chain;
 pub mod clip;
 pub mod geometry;
 pub mod hatch;
@@ -21,6 +22,7 @@ pub mod sketchy;
 pub mod svg;
 
 // Re-export common types at crate root for convenience.
+pub use chain::{chain_lines, Chain, ChainConfig, ChainStats};
 pub use clip::{clip_line_to_polygon, clip_lines_to_polygon, point_in_polygon};
 pub use geometry::{Line, Point, Polygon};
 pub use hatch::{generate_crosshatch_fill, generate_hatch_lines, generate_lines_fill};
