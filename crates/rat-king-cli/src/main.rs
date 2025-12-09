@@ -42,6 +42,9 @@ use rat_king::{
         generate_gyroid_fill, generate_guilloche_fill,
         generate_lissajous_fill, generate_rose_fill,
         generate_phyllotaxis_fill, generate_pentagon15_fill,
+        generate_pentagon14_fill, generate_grid_fill,
+        generate_brick_fill, generate_truchet_fill,
+        generate_stipple_fill, generate_peano_fill,
     },
 };
 
@@ -1280,6 +1283,12 @@ fn generate_pattern(pattern: Pattern, polygon: &Polygon, spacing: f64, angle: f6
         Pattern::Scribble => generate_scribble_fill(polygon, spacing, angle),
         Pattern::Gyroid => generate_gyroid_fill(polygon, spacing, angle),
         Pattern::Pentagon15 => generate_pentagon15_fill(polygon, spacing * 3.0, angle),
+        Pattern::Pentagon14 => generate_pentagon14_fill(polygon, spacing * 3.0, angle),
+        Pattern::Grid => generate_grid_fill(polygon, spacing, angle),
+        Pattern::Brick => generate_brick_fill(polygon, spacing, angle),
+        Pattern::Truchet => generate_truchet_fill(polygon, spacing * 2.0, angle),
+        Pattern::Stipple => generate_stipple_fill(polygon, spacing, angle),
+        Pattern::Peano => generate_peano_fill(polygon, spacing, angle),
     }
 }
 

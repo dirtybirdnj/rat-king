@@ -17,6 +17,12 @@ mod lissajous;
 mod rose;
 mod phyllotaxis;
 mod pentagon15;
+mod pentagon14;
+mod grid;
+mod brick;
+mod truchet;
+mod stipple;
+mod peano;
 
 pub use zigzag::generate_zigzag_fill;
 pub use wiggle::generate_wiggle_fill;
@@ -33,6 +39,12 @@ pub use lissajous::generate_lissajous_fill;
 pub use rose::generate_rose_fill;
 pub use phyllotaxis::generate_phyllotaxis_fill;
 pub use pentagon15::generate_pentagon15_fill;
+pub use pentagon14::generate_pentagon14_fill;
+pub use grid::generate_grid_fill;
+pub use brick::generate_brick_fill;
+pub use truchet::generate_truchet_fill;
+pub use stipple::generate_stipple_fill;
+pub use peano::generate_peano_fill;
 
 // Re-export from hatch module (already implemented)
 pub use crate::hatch::{generate_lines_fill, generate_crosshatch_fill};
@@ -58,6 +70,12 @@ pub enum Pattern {
     Scribble,
     Gyroid,
     Pentagon15,
+    Pentagon14,
+    Grid,
+    Brick,
+    Truchet,
+    Stipple,
+    Peano,
 }
 
 impl Pattern {
@@ -82,6 +100,12 @@ impl Pattern {
             Pattern::Scribble,
             Pattern::Gyroid,
             Pattern::Pentagon15,
+            Pattern::Pentagon14,
+            Pattern::Grid,
+            Pattern::Brick,
+            Pattern::Truchet,
+            Pattern::Stipple,
+            Pattern::Peano,
         ]
     }
 
@@ -106,6 +130,12 @@ impl Pattern {
             Pattern::Scribble => "scribble",
             Pattern::Gyroid => "gyroid",
             Pattern::Pentagon15 => "pentagon15",
+            Pattern::Pentagon14 => "pentagon14",
+            Pattern::Grid => "grid",
+            Pattern::Brick => "brick",
+            Pattern::Truchet => "truchet",
+            Pattern::Stipple => "stipple",
+            Pattern::Peano => "peano",
         }
     }
 
@@ -135,7 +165,13 @@ impl Pattern {
             "phyllotaxis" | "sunflower" => Some(Pattern::Phyllotaxis),
             "scribble" => Some(Pattern::Scribble),
             "gyroid" => Some(Pattern::Gyroid),
-            "pentagon15" | "pent15" | "pentagon" => Some(Pattern::Pentagon15),
+            "pentagon15" | "pent15" => Some(Pattern::Pentagon15),
+            "pentagon14" | "pent14" => Some(Pattern::Pentagon14),
+            "grid" => Some(Pattern::Grid),
+            "brick" | "running-bond" => Some(Pattern::Brick),
+            "truchet" => Some(Pattern::Truchet),
+            "stipple" | "dots" => Some(Pattern::Stipple),
+            "peano" => Some(Pattern::Peano),
             _ => None,
         }
     }
