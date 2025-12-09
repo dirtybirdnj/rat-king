@@ -35,9 +35,6 @@ pub fn generate_gyroid_fill(
         return Vec::new();
     };
 
-    let width = max_x - min_x;
-    let height = max_y - min_y;
-
     // Scale factor to map polygon space to gyroid space
     // spacing controls the "wavelength" of the gyroid pattern
     let scale = (2.0 * PI) / (spacing * 4.0);

@@ -70,34 +70,75 @@ rat-king myfile.svg           # Opens TUI with your SVG
 # Fill shapes with a pattern
 rat-king fill input.svg -p crosshatch -o output.svg
 
+# Apply sketchy/hand-drawn effect (RoughJS-style)
+rat-king fill input.svg -p lines --sketchy -o output.svg
+
+# Include polygon outlines with pattern fill
+rat-king fill input.svg -p lines --strokes -o output.svg
+
+# Full sketchy example with custom parameters
+rat-king fill input.svg -p crosshatch --sketchy --roughness 2.0 --bowing 1.5 --strokes -o output.svg
+
 # Benchmark a pattern
 rat-king benchmark input.svg -p gyroid
+
+# Run test harness with visual analysis
+rat-king harness input.svg --analyze --json -o results/
 
 # List all available patterns
 rat-king patterns
 ```
 
-## Available Patterns (17 total)
+### Sketchy Effect Options
 
-| Pattern | Description | Visual Style |
-|---------|-------------|--------------|
-| `lines` | Parallel line hatching | Classic crosshatch base |
-| `crosshatch` | Two perpendicular line sets | X pattern |
-| `zigzag` | Connected angular waves | Lightning bolt |
-| `wiggle` | Smooth sinusoidal waves | Wavy lines |
-| `spiral` | Archimedean spiral from center | Single arm spiral |
-| `fermat` | Fermat (sqrt radius) spiral | Dense center spiral |
-| `concentric` | Nested polygon outlines | Shrinking shells |
-| `radial` | Lines radiating from center | Sunburst |
-| `honeycomb` | Hexagonal grid | Beehive cells |
-| `crossspiral` | Two opposing spirals | CW + CCW arms |
-| `hilbert` | Space-filling curve | Recursive maze |
-| `guilloche` | Spirograph hypotrochoid | Currency-style |
-| `lissajous` | Oscilloscope curves | Figure-8s |
-| `rose` | Flower petal curves | Rhodonea petals |
-| `phyllotaxis` | Golden angle sunflower | Fibonacci spirals |
-| `scribble` | Organic random walk | Hand-drawn look |
-| `gyroid` | 3D minimal surface | Flowing contours |
+The `--sketchy` flag applies a hand-drawn effect (inspired by [RoughJS](https://roughjs.com/)):
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--sketchy` | Enable sketchy mode | - |
+| `--roughness <n>` | Endpoint randomization | 1.0 |
+| `--bowing <n>` | Line curvature amount | 1.0 |
+| `--no-double-stroke` | Disable double-line effect | - |
+| `--seed <n>` | Random seed for reproducibility | - |
+| `--strokes` | Include polygon outlines | - |
+
+## Available Patterns (29 total)
+
+![Pattern Reference](docs/all_patterns.png)
+
+| Pattern | Description | Coverage | Visual Style |
+|---------|-------------|----------|--------------|
+| `lines` | Parallel line hatching | Excellent (99%) | Classic crosshatch base |
+| `crosshatch` | Two perpendicular line sets | Excellent (99%) | X pattern |
+| `zigzag` | Connected angular waves | Excellent (99%) | Lightning bolt |
+| `wiggle` | Smooth sinusoidal waves | Excellent (99%) | Wavy lines |
+| `spiral` | Archimedean spiral from center | Excellent (99%) | Single arm spiral |
+| `fermat` | Fermat (sqrt radius) spiral | Good (77%) | Dense center spiral |
+| `concentric` | Nested polygon outlines | N/A | Shrinking shells |
+| `radial` | Lines radiating from center | Poor (44%) | Sunburst |
+| `honeycomb` | Hexagonal grid | Excellent (90%) | Beehive cells |
+| `crossspiral` | Two opposing spirals | Excellent (95%) | CW + CCW arms |
+| `hilbert` | Space-filling curve | Excellent (91%) | Recursive maze |
+| `guilloche` | Spirograph hypotrochoid | Poor (15%) | Currency-style |
+| `lissajous` | Oscilloscope curves | Fair (63%) | Figure-8s |
+| `rose` | Flower petal curves | Poor (33%) | Rhodonea petals |
+| `phyllotaxis` | Golden angle sunflower | Fair (65%) | Fibonacci spirals |
+| `scribble` | Organic random walk | N/A | Hand-drawn look |
+| `gyroid` | 3D minimal surface | N/A | Flowing contours |
+| `pentagon15` | Type 15 pentagonal tiling | Poor (36%) | Aperiodic tiles |
+| `pentagon14` | Type 14 pentagonal tiling | Poor (42%) | Aperiodic tiles |
+| `grid` | Orthogonal crosshatch | Excellent (99%) | Square grid |
+| `brick` | Offset rectangular tiling | Excellent (99%) | Brick wall |
+| `truchet` | Quarter-circle tiles | Good (85%) | Maze-like curves |
+| `stipple` | Poisson disk stippling | Excellent (98%) | Dots/points |
+| `peano` | Peano space-filling curve | Excellent (99%) | Recursive maze |
+| `sierpinski` | Sierpinski triangle | Poor (24%) | Fractal triangles |
+| `diagonal` | 45° parallel lines | Excellent (99%) | Angled hatching |
+| `herringbone` | V-shaped brick pattern | Fair (58%) | Zigzag bricks |
+| `stripe` | Horizontal parallel lines | Excellent (98%) | Classic hatching |
+| `tessellation` | Tiled pattern | Fair (52%) | Geometric tiles |
+
+*Coverage ratings are based on test harness analysis at spacing=2.5, angle=45°*
 
 ## Architecture
 
@@ -106,12 +147,15 @@ rat-king/
 ├── crates/                    # Rust workspace
 │   ├── rat-king/              # Pattern generation library (the dependency)
 │   │   └── src/
-│   │       ├── patterns/      # 17 pattern implementations
+│   │       ├── patterns/      # 29 pattern implementations
 │   │       ├── geometry.rs    # Point, Line, Polygon types
 │   │       ├── clip.rs        # Point-in-polygon clipping
 │   │       └── hatch.rs       # Line generation utilities
 │   └── rat-king-cli/          # CLI/TUI binary
-│       └── src/main.rs        # TUI + fill, benchmark, patterns commands
+│       └── src/main.rs        # TUI + fill, benchmark, harness, patterns commands
+├── docs/                      # Documentation and assets
+│   ├── all_patterns.png       # Pattern reference image
+│   └── all_patterns.pdf       # Pattern reference PDF
 └── test_assets/               # Test SVGs (public domain)
     └── essex.svg              # 314 polygons - USGS county boundaries
 ```

@@ -1,7 +1,7 @@
 //! Radial fill pattern - lines radiating from center.
 
 use std::f64::consts::PI;
-use crate::geometry::{Line, Point, Polygon};
+use crate::geometry::{Line, Polygon};
 use crate::clip::{point_in_polygon, line_polygon_intersections};
 
 /// Generate radial fill for a polygon - lines radiating from center.
@@ -109,6 +109,7 @@ pub fn generate_radial_fill(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::geometry::Point;
 
     #[test]
     fn generates_radial_lines() {

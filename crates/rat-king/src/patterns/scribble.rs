@@ -8,34 +8,7 @@
 use std::f64::consts::PI;
 use crate::geometry::{Line, Polygon};
 use crate::clip::point_in_polygon;
-
-/// Simple deterministic pseudo-random number generator.
-/// Uses a linear congruential generator for reproducible results.
-struct SimpleRng {
-    state: u64,
-}
-
-impl SimpleRng {
-    fn new(seed: u64) -> Self {
-        Self { state: seed.wrapping_add(1) }
-    }
-
-    fn next(&mut self) -> u64 {
-        // LCG parameters from Numerical Recipes
-        self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
-        self.state
-    }
-
-    /// Random f64 in [0, 1)
-    fn next_f64(&mut self) -> f64 {
-        (self.next() >> 11) as f64 / (1u64 << 53) as f64
-    }
-
-    /// Random f64 in [-1, 1)
-    fn next_signed(&mut self) -> f64 {
-        self.next_f64() * 2.0 - 1.0
-    }
-}
+use crate::rng::Rng;
 
 /// Generate organic scribble fill for a polygon.
 ///
@@ -61,7 +34,7 @@ pub fn generate_scribble_fill(
 
     // Use angle as seed for deterministic but varied results
     let seed = (angle_degrees * 1000.0) as u64;
-    let mut rng = SimpleRng::new(seed);
+    let mut rng = Rng::new(seed);
 
     let mut lines = Vec::new();
 
@@ -146,7 +119,7 @@ fn add_organic_loops(
     lines: &mut Vec<Line>,
     polygon: &Polygon,
     spacing: f64,
-    rng: &mut SimpleRng,
+    rng: &mut Rng,
 ) {
     let Some((min_x, min_y, max_x, max_y)) = polygon.bounding_box() else {
         return;
@@ -158,8 +131,8 @@ fn add_organic_loops(
 
     for _ in 0..num_loops {
         // Find a random starting point
-        let mut cx = min_x + rng.next_f64() * width;
-        let mut cy = min_y + rng.next_f64() * height;
+        let cx = min_x + rng.next_f64() * width;
+        let cy = min_y + rng.next_f64() * height;
 
         if !point_in_polygon(cx, cy, &polygon.outer) {
             continue;

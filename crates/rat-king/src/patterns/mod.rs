@@ -2,6 +2,8 @@
 //!
 //! Each pattern generates lines that are clipped to the polygon boundary.
 
+pub mod util;
+
 mod zigzag;
 mod wiggle;
 mod spiral;
@@ -27,6 +29,8 @@ mod sierpinski;
 mod diagonal;
 mod herringbone;
 mod stripe;
+mod tessellation;
+mod harmonograph;
 
 pub use zigzag::generate_zigzag_fill;
 pub use wiggle::generate_wiggle_fill;
@@ -53,9 +57,29 @@ pub use sierpinski::generate_sierpinski_fill;
 pub use diagonal::generate_diagonal_fill;
 pub use herringbone::generate_herringbone_fill;
 pub use stripe::{generate_stripe_fill, generate_stripe_fill_configured, StripeConfig};
+pub use tessellation::generate_tessellation_fill;
+pub use harmonograph::generate_harmonograph_fill;
 
 // Re-export from hatch module (already implemented)
 pub use crate::hatch::{generate_lines_fill, generate_crosshatch_fill};
+
+/// Metadata describing a pattern for UI display.
+#[derive(Debug, Clone, Copy)]
+pub struct PatternMetadata {
+    /// Label for the spacing parameter
+    pub spacing_label: &'static str,
+    /// Label for the angle parameter
+    pub angle_label: &'static str,
+    /// Brief description of the pattern
+    pub description: &'static str,
+}
+
+impl PatternMetadata {
+    /// Create new pattern metadata.
+    pub const fn new(spacing_label: &'static str, angle_label: &'static str, description: &'static str) -> Self {
+        Self { spacing_label, angle_label, description }
+    }
+}
 
 /// Available pattern types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -88,6 +112,8 @@ pub enum Pattern {
     Diagonal,
     Herringbone,
     Stripe,
+    Tessellation,
+    Harmonograph,
 }
 
 impl Pattern {
@@ -122,6 +148,8 @@ impl Pattern {
             Pattern::Diagonal,
             Pattern::Herringbone,
             Pattern::Stripe,
+            Pattern::Tessellation,
+            Pattern::Harmonograph,
         ]
     }
 
@@ -156,6 +184,8 @@ impl Pattern {
             Pattern::Diagonal => "diagonal",
             Pattern::Herringbone => "herringbone",
             Pattern::Stripe => "stripe",
+            Pattern::Tessellation => "tessellation",
+            Pattern::Harmonograph => "harmonograph",
         }
     }
 
@@ -163,6 +193,82 @@ impl Pattern {
     /// All patterns are now fully implemented.
     pub fn is_stub(&self) -> bool {
         false
+    }
+
+    /// Get UI metadata for this pattern.
+    ///
+    /// Returns (spacing_label, angle_label, description) for UI display.
+    pub fn metadata(&self) -> PatternMetadata {
+        match self {
+            Pattern::Lines | Pattern::Crosshatch | Pattern::Diagonal =>
+                PatternMetadata::new("Line Spacing", "Angle", "Parallel lines at angle"),
+            Pattern::Zigzag =>
+                PatternMetadata::new("Amplitude", "Angle", "Zigzag waves with amplitude"),
+            Pattern::Wiggle =>
+                PatternMetadata::new("Wavelength", "Angle", "Smooth sine waves"),
+            Pattern::Spiral =>
+                PatternMetadata::new("Turn Spacing", "Start Angle", "Archimedean spiral"),
+            Pattern::Fermat =>
+                PatternMetadata::new("Turn Spacing", "Rotation", "Fermat (parabolic) spiral"),
+            Pattern::Concentric =>
+                PatternMetadata::new("Ring Spacing", "N/A", "Concentric offset rings"),
+            Pattern::Radial =>
+                PatternMetadata::new("Ray Count", "Offset", "Radial rays from center"),
+            Pattern::Honeycomb =>
+                PatternMetadata::new("Cell Size", "Angle", "Hexagonal honeycomb grid"),
+            Pattern::Crossspiral =>
+                PatternMetadata::new("Arm Spacing", "Arms", "Crossed spiral arms"),
+            Pattern::Hilbert =>
+                PatternMetadata::new("Detail", "Rotation", "Hilbert space-filling curve"),
+            Pattern::Guilloche =>
+                PatternMetadata::new("Complexity", "Phase", "Spirograph-like curves"),
+            Pattern::Lissajous =>
+                PatternMetadata::new("Frequency", "Phase", "Lissajous figure curves"),
+            Pattern::Rose =>
+                PatternMetadata::new("Petals", "Rotation", "Rose/rhodonea curves"),
+            Pattern::Phyllotaxis =>
+                PatternMetadata::new("Dot Spacing", "Golden Angle", "Sunflower seed pattern"),
+            Pattern::Scribble =>
+                PatternMetadata::new("Density", "Chaos", "Random scribble fill"),
+            Pattern::Gyroid =>
+                PatternMetadata::new("Cell Size", "Rotation", "3D gyroid projection"),
+            Pattern::Pentagon15 =>
+                PatternMetadata::new("Tile Size", "Rotation", "Penrose P3 tiling"),
+            Pattern::Pentagon14 =>
+                PatternMetadata::new("Tile Size", "Rotation", "Cairo pentagonal tiling"),
+            Pattern::Grid =>
+                PatternMetadata::new("Cell Size", "Angle", "Square grid pattern"),
+            Pattern::Brick =>
+                PatternMetadata::new("Brick Width", "Angle", "Running bond brick"),
+            Pattern::Truchet =>
+                PatternMetadata::new("Tile Size", "Rotation", "Random Truchet tiles"),
+            Pattern::Stipple =>
+                PatternMetadata::new("Dot Spacing", "Randomness", "Stippled dot pattern"),
+            Pattern::Peano =>
+                PatternMetadata::new("Detail", "Rotation", "Peano space-filling curve"),
+            Pattern::Sierpinski =>
+                PatternMetadata::new("Detail", "Rotation", "Sierpinski arrowhead"),
+            Pattern::Herringbone =>
+                PatternMetadata::new("Segment Size", "Angle", "Herringbone chevrons"),
+            Pattern::Stripe =>
+                PatternMetadata::new("Band Width", "Angle", "Grouped stripe bands"),
+            Pattern::Tessellation =>
+                PatternMetadata::new("N/A", "N/A", "Triangulate polygon"),
+            Pattern::Harmonograph =>
+                PatternMetadata::new("Curve Count", "Phase", "Decaying pendulum curves"),
+        }
+    }
+
+    /// Get the spacing multiplier for this pattern.
+    ///
+    /// Some patterns need the spacing parameter scaled for better default behavior.
+    pub fn spacing_multiplier(&self) -> f64 {
+        match self {
+            Pattern::Zigzag | Pattern::Wiggle | Pattern::Spiral | Pattern::Fermat
+            | Pattern::Honeycomb | Pattern::Crossspiral | Pattern::Grid
+            | Pattern::Brick | Pattern::Truchet | Pattern::Herringbone | Pattern::Stripe => 2.0,
+            _ => 1.0,
+        }
     }
 
     /// Parse pattern from string.
@@ -196,6 +302,8 @@ impl Pattern {
             "diagonal" => Some(Pattern::Diagonal),
             "herringbone" | "chevron" => Some(Pattern::Herringbone),
             "stripe" | "stripes" | "bands" => Some(Pattern::Stripe),
+            "tessellation" | "triangulate" | "triangles" => Some(Pattern::Tessellation),
+            "harmonograph" | "pendulum" => Some(Pattern::Harmonograph),
             _ => None,
         }
     }

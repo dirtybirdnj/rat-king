@@ -3,9 +3,9 @@
 //! Simple diagonal lines at a specified angle - essentially the same as lines
 //! but with a default 45-degree angle and specific diagonal behavior.
 
-use std::f64::consts::PI;
-use crate::geometry::{Line, Point, Polygon};
+use crate::geometry::{Line, Polygon};
 use crate::clip::clip_lines_to_polygon;
+use super::util::{PatternContext, LineDirection};
 
 /// Generate diagonal line fill for a polygon.
 ///
@@ -16,59 +16,15 @@ pub fn generate_diagonal_fill(
     spacing: f64,
     angle_degrees: f64,
 ) -> Vec<Line> {
-    let outer = &polygon.outer;
-    if outer.len() < 3 {
-        return Vec::new();
-    }
-
-    let Some((min_x, min_y, max_x, max_y)) = polygon.bounding_box() else {
-        return Vec::new();
-    };
-
-    let center_x = (min_x + max_x) / 2.0;
-    let center_y = (min_y + max_y) / 2.0;
-
     // Default to 45 degrees if angle is 0
-    let angle_rad = if angle_degrees == 0.0 {
-        45.0 * PI / 180.0
-    } else {
-        angle_degrees * PI / 180.0
+    let effective_angle = if angle_degrees == 0.0 { 45.0 } else { angle_degrees };
+
+    let Some(ctx) = PatternContext::new(polygon, spacing, effective_angle) else {
+        return Vec::new();
     };
 
-    let width = max_x - min_x;
-    let height = max_y - min_y;
-    let diagonal = (width * width + height * height).sqrt();
-
-    // Generate parallel lines perpendicular to the angle
-    let cos_a = angle_rad.cos();
-    let sin_a = angle_rad.sin();
-
-    // Direction along the lines
-    let dx = cos_a;
-    let dy = sin_a;
-
-    // Direction perpendicular to lines (for spacing)
-    let px = -sin_a;
-    let py = cos_a;
-
-    let mut lines = Vec::new();
-    let num_lines = (diagonal / spacing).ceil() as i32;
-
-    for i in -num_lines..=num_lines {
-        let offset = i as f64 * spacing;
-
-        // Start and end points of line through center, offset perpendicular
-        let cx = center_x + px * offset;
-        let cy = center_y + py * offset;
-
-        // Extend line in both directions
-        let x1 = cx - dx * diagonal;
-        let y1 = cy - dy * diagonal;
-        let x2 = cx + dx * diagonal;
-        let y2 = cy + dy * diagonal;
-
-        lines.push(Line::new(x1, y1, x2, y2));
-    }
+    let dir = LineDirection::from_degrees(effective_angle);
+    let lines = dir.generate_parallel_lines(ctx.center, spacing, ctx.line_count(), ctx.diagonal);
 
     clip_lines_to_polygon(&lines, polygon)
 }
@@ -76,6 +32,7 @@ pub fn generate_diagonal_fill(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::geometry::Point;
 
     #[test]
     fn generates_diagonal_lines() {

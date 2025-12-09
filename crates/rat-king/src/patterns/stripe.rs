@@ -4,7 +4,7 @@
 //! Useful for creating banded effects with grouped parallel lines.
 
 use std::f64::consts::PI;
-use crate::geometry::{Line, Point, Polygon};
+use crate::geometry::{Line, Polygon};
 use crate::clip::clip_lines_to_polygon;
 
 /// Configuration for stripe pattern.
@@ -122,6 +122,7 @@ pub fn generate_stripe_fill_configured(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::geometry::Point;
 
     #[test]
     fn generates_stripe_lines() {

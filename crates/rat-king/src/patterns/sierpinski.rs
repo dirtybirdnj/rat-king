@@ -9,7 +9,7 @@
 //!   Where + = turn left 60°, - = turn right 60°
 
 use std::f64::consts::PI;
-use crate::geometry::{Line, Point, Polygon};
+use crate::geometry::{Line, Polygon};
 use crate::clip::clip_lines_to_polygon;
 
 /// Generate L-system string for Sierpiński curve.
@@ -146,6 +146,7 @@ pub fn generate_sierpinski_fill(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::geometry::Point;
 
     #[test]
     fn generates_sierpinski_lines() {

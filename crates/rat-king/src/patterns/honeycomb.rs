@@ -2,7 +2,7 @@
 
 use std::f64::consts::PI;
 use std::collections::HashSet;
-use crate::geometry::{Line, Point, Polygon};
+use crate::geometry::{Line, Polygon};
 use crate::clip::{point_in_polygon, line_polygon_intersections};
 
 /// Generate honeycomb (hexagonal grid) fill for a polygon.
@@ -185,6 +185,7 @@ fn deduplicate_lines(lines: Vec<Line>) -> Vec<Line> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::geometry::Point;
 
     #[test]
     fn generates_honeycomb_lines() {

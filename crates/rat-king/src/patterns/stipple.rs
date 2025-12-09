@@ -4,30 +4,9 @@
 //! Useful for creating tonal gradients and textures.
 
 use std::f64::consts::PI;
-use crate::geometry::{Line, Point, Polygon};
+use crate::geometry::{Line, Polygon};
 use crate::clip::point_in_polygon;
-
-/// Simple pseudo-random number generator.
-struct SimpleRng {
-    state: u64,
-}
-
-impl SimpleRng {
-    fn new(seed: u64) -> Self {
-        Self { state: seed.wrapping_add(1) }
-    }
-
-    fn next(&mut self) -> u64 {
-        self.state ^= self.state << 13;
-        self.state ^= self.state >> 7;
-        self.state ^= self.state << 17;
-        self.state
-    }
-
-    fn next_f64(&mut self) -> f64 {
-        (self.next() as f64) / (u64::MAX as f64)
-    }
-}
+use crate::rng::Rng;
 
 /// Generate stipple (dot) pattern fill for a polygon.
 ///
@@ -61,7 +40,7 @@ pub fn generate_stipple_fill(
     let dot_size = spacing * 0.15;
 
     let mut lines = Vec::with_capacity(num_dots);
-    let mut rng = SimpleRng::new(12345);
+    let mut rng = Rng::new(12345);
 
     let mut attempts = 0;
     let max_attempts = num_dots * 10;
@@ -107,6 +86,7 @@ pub fn generate_stipple_fill(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::geometry::Point;
 
     #[test]
     fn generates_stipple_lines() {

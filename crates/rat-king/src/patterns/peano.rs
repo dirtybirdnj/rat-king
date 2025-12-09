@@ -5,7 +5,7 @@
 //! This creates a denser, more intricate pattern.
 
 use std::f64::consts::PI;
-use crate::geometry::{Line, Point, Polygon};
+use crate::geometry::{Line, Polygon};
 use crate::clip::clip_lines_to_polygon;
 
 /// Generate points along a Peano curve.
@@ -128,6 +128,7 @@ pub fn generate_peano_fill(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::geometry::Point;
 
     #[test]
     fn generates_peano_lines() {

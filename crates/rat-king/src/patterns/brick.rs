@@ -4,7 +4,7 @@
 //! Classic masonry pattern used in walls and pavements.
 
 use std::f64::consts::PI;
-use crate::geometry::{Line, Point, Polygon};
+use crate::geometry::{Line, Polygon};
 use crate::clip::point_in_polygon;
 
 /// Generate brick pattern fill for a polygon.
@@ -101,6 +101,7 @@ pub fn generate_brick_fill(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::geometry::Point;
 
     #[test]
     fn generates_brick_lines() {

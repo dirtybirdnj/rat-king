@@ -4,7 +4,7 @@
 //! diagonal lines that create a V-shaped or zigzag arrangement.
 
 use std::f64::consts::PI;
-use crate::geometry::{Line, Point, Polygon};
+use crate::geometry::{Line, Polygon};
 use crate::clip::clip_lines_to_polygon;
 
 /// Generate herringbone fill pattern for a polygon.
@@ -91,6 +91,7 @@ pub fn generate_herringbone_fill(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::geometry::Point;
 
     #[test]
     fn generates_herringbone_lines() {

@@ -164,6 +164,54 @@ impl Polygon {
 
         Some((min_x, min_y, max_x, max_y))
     }
+
+    /// Check if a point is inside the polygon body (inside outer, not in any hole).
+    ///
+    /// This is a convenience method that combines the outer boundary check
+    /// with hole exclusion, which is a very common pattern in fill algorithms.
+    ///
+    /// # Arguments
+    /// * `x` - X coordinate to test
+    /// * `y` - Y coordinate to test
+    /// * `point_in_polygon_fn` - Function to test point-in-polygon (typically `clip::point_in_polygon`)
+    ///
+    /// # Example
+    /// ```ignore
+    /// use rat_king::clip::point_in_polygon;
+    /// if polygon.point_in_body(x, y, point_in_polygon) {
+    ///     // Point is inside the filled region
+    /// }
+    /// ```
+    #[inline]
+    pub fn point_in_body<F>(&self, x: f64, y: f64, point_in_polygon_fn: F) -> bool
+    where
+        F: Fn(f64, f64, &[Point]) -> bool,
+    {
+        // Must be inside outer boundary
+        if !point_in_polygon_fn(x, y, &self.outer) {
+            return false;
+        }
+        // Must not be in any hole
+        !self.holes.iter().any(|hole| point_in_polygon_fn(x, y, hole))
+    }
+
+    /// Get the center point of the polygon's bounding box.
+    #[inline]
+    pub fn center(&self) -> Option<Point> {
+        self.bounding_box().map(|(min_x, min_y, max_x, max_y)| {
+            Point::new((min_x + max_x) / 2.0, (min_y + max_y) / 2.0)
+        })
+    }
+
+    /// Get the diagonal length of the bounding box.
+    #[inline]
+    pub fn diagonal(&self) -> Option<f64> {
+        self.bounding_box().map(|(min_x, min_y, max_x, max_y)| {
+            let width = max_x - min_x;
+            let height = max_y - min_y;
+            (width * width + height * height).sqrt()
+        })
+    }
 }
 
 // ============================================================================
@@ -205,5 +253,61 @@ mod tests {
     fn empty_polygon_bbox() {
         let poly = Polygon::new(vec![]);
         assert_eq!(poly.bounding_box(), None);
+    }
+
+    #[test]
+    fn polygon_center() {
+        let poly = Polygon::new(vec![
+            Point::new(0.0, 0.0),
+            Point::new(10.0, 0.0),
+            Point::new(10.0, 10.0),
+            Point::new(0.0, 10.0),
+        ]);
+        let center = poly.center().unwrap();
+        assert_eq!(center.x, 5.0);
+        assert_eq!(center.y, 5.0);
+    }
+
+    #[test]
+    fn polygon_diagonal() {
+        let poly = Polygon::new(vec![
+            Point::new(0.0, 0.0),
+            Point::new(3.0, 0.0),
+            Point::new(3.0, 4.0),
+            Point::new(0.0, 4.0),
+        ]);
+        let diag = poly.diagonal().unwrap();
+        assert_eq!(diag, 5.0); // 3-4-5 triangle
+    }
+
+    #[test]
+    fn point_in_body_basic() {
+        let poly = Polygon::new(vec![
+            Point::new(0.0, 0.0),
+            Point::new(10.0, 0.0),
+            Point::new(10.0, 10.0),
+            Point::new(0.0, 10.0),
+        ]);
+
+        // Simple point_in_polygon for testing
+        fn pip(x: f64, y: f64, pts: &[Point]) -> bool {
+            let mut inside = false;
+            let n = pts.len();
+            let mut j = n - 1;
+            for i in 0..n {
+                let yi = pts[i].y;
+                let yj = pts[j].y;
+                let xi = pts[i].x;
+                let xj = pts[j].x;
+                if ((yi > y) != (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi) {
+                    inside = !inside;
+                }
+                j = i;
+            }
+            inside
+        }
+
+        assert!(poly.point_in_body(5.0, 5.0, pip));
+        assert!(!poly.point_in_body(15.0, 5.0, pip));
     }
 }

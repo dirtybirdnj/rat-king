@@ -4,115 +4,61 @@ Research and implementation notes for rat-king fill patterns.
 
 ---
 
-## Current Status
+## Current Status (December 2024)
 
-### Implemented (9 patterns)
-| Pattern | Description | Rust Status |
-|---------|-------------|-------------|
-| `lines` | Parallel hatch lines | Done |
-| `crosshatch` | Two perpendicular line sets | Done |
-| `zigzag` | Connected zigzag lines | Done |
-| `wiggle` | Sinusoidal wave lines | Done |
-| `spiral` | Archimedean spiral from center | Done |
-| `fermat` | Fermat spiral (sqrt radius) | Done |
-| `concentric` | Inward-shrinking polygon shells | Done |
-| `radial` | Lines radiating from center | Done |
-| `honeycomb` | Hexagonal grid | Done |
+### Implemented Patterns (29 total)
 
-### Stub Patterns (4 patterns - need implementation)
-| Pattern | Description | Fallback |
-|---------|-------------|----------|
-| `scribble` | Random organic scribble | → lines |
-| `crossspiral` | Two opposing spirals | → crosshatch |
-| `hilbert` | Hilbert space-filling curve | → zigzag |
-| `gyroid` | 3D minimal surface projection | → wiggle |
+All patterns are fully implemented in Rust. Coverage ratings from test harness (spacing=2.5, angle=45°):
 
----
+| Pattern | Description | Coverage | Status |
+|---------|-------------|----------|--------|
+| `lines` | Parallel hatch lines | Excellent (99%) | Done |
+| `crosshatch` | Two perpendicular line sets | Excellent (99%) | Done |
+| `zigzag` | Connected zigzag lines | Excellent (99%) | Done |
+| `wiggle` | Sinusoidal wave lines | Excellent (99%) | Done |
+| `spiral` | Archimedean spiral from center | Excellent (99%) | Done |
+| `fermat` | Fermat spiral (sqrt radius) | Good (77%) | Done |
+| `concentric` | Inward-shrinking polygon shells | N/A* | Done |
+| `radial` | Lines radiating from center | Poor (44%) | Done |
+| `honeycomb` | Hexagonal grid | Excellent (90%) | Done |
+| `crossspiral` | Two opposing spirals | Excellent (95%) | Done |
+| `hilbert` | Hilbert space-filling curve | Excellent (91%) | Done |
+| `guilloche` | Spirograph hypotrochoid | Poor (15%) | Done |
+| `lissajous` | Oscilloscope curves | Fair (63%) | Done |
+| `rose` | Flower petal curves | Poor (33%) | Done |
+| `phyllotaxis` | Golden angle sunflower | Fair (65%) | Done |
+| `scribble` | Random organic walk | N/A* | Done |
+| `gyroid` | 3D minimal surface projection | N/A* | Done |
+| `pentagon15` | Type 15 pentagonal tiling | Poor (36%) | Done |
+| `pentagon14` | Type 14 pentagonal tiling | Poor (42%) | Done |
+| `grid` | Orthogonal crosshatch | Excellent (99%) | Done |
+| `brick` | Offset rectangular tiling | Excellent (99%) | Done |
+| `truchet` | Quarter-circle tiles | Good (85%) | Done |
+| `stipple` | Poisson disk stippling | Excellent (98%) | Done |
+| `peano` | Peano space-filling curve | Excellent (99%) | Done |
+| `sierpinski` | Sierpinski triangle | Poor (24%) | Done |
+| `diagonal` | 45° parallel lines | Excellent (99%) | Done |
+| `herringbone` | V-shaped brick pattern | Fair (58%) | Done |
+| `stripe` | Horizontal parallel lines | Excellent (98%) | Done |
+| `tessellation` | Geometric tiled pattern | Fair (52%) | Done |
 
-## Priority Queue
+*N/A: Pattern generates too many elements for automated visual analysis at default spacing
 
-### High Priority (Core Plotter Patterns)
+### Additional Features
 
-#### 1. Scribble
-Random/organic line paths that stay within bounds.
-
-```
-ALGORITHM:
-  1. Start at random point inside polygon
-  2. Random walk with momentum (smooth direction changes)
-  3. When approaching edge, curve back inward
-  4. Continue until coverage threshold met
-
-PARAMETERS:
-  - density: line coverage percentage
-  - smoothness: direction change rate
-  - segment_length: step size
-```
-
-#### 2. Hilbert Curve
-Space-filling curve that visits all cells in grid.
-
-```
-ALGORITHM (L-System):
-  Axiom: A
-  Rules:
-    A → +BF-AFA-FB+
-    B → -AF+BFB+FA-
-
-  Where:
-    F = forward
-    + = turn left 90°
-    - = turn right 90°
-
-IMPLEMENTATION:
-  1. Generate L-system string to desired depth
-  2. Execute turtle graphics
-  3. Scale and clip to polygon bounds
-
-DEPTH vs DENSITY:
-  Depth 1: 4 segments
-  Depth 2: 16 segments
-  Depth 3: 64 segments
-  Depth 4: 256 segments
-```
-
-#### 3. Crossspiral
-Two Archimedean spirals, one clockwise, one counter-clockwise.
-
-```
-ALGORITHM:
-  1. Generate spiral from center, CW
-  2. Generate spiral from center, CCW (180° offset)
-  3. Clip both to polygon
-  4. Interleave for draw order
-```
+| Feature | Description | Status |
+|---------|-------------|--------|
+| `--sketchy` | Hand-drawn effect (RoughJS-style) | Done |
+| `--strokes` | Include polygon outlines as geometry | Done |
+| `--analyze` | Visual coverage/bounds analysis | Done |
+| JSON output | Grouped or flat line export | Done |
+| Sixel preview | High-res terminal graphics | Done |
 
 ---
 
 ## Future Patterns (Research)
 
 ### Mathematical Curves
-
-#### Lissajous Curves
-```
-x(t) = A * sin(a*t + δ)
-y(t) = B * sin(b*t)
-
-PARAMETERS:
-  - a:b ratio determines figure shape
-  - δ (phase) rotates/morphs the figure
-  - Damping creates spiral-in effect
-
-PLOTTER ADVANTAGE: Single continuous path
-```
-
-#### Rose Curves (Rhodonea)
-```
-r = cos(k * θ)
-
-k integer: k or 2k petals
-k = p/q rational: complex multi-lobed figures
-```
 
 #### Harmonograph
 ```
@@ -132,23 +78,6 @@ Generates: circles, ellipses, stars, organic leaf/petal shapes
 ---
 
 ### Tile-Based Systems
-
-#### Truchet Tiles
-Quarter-circle tiles that create emergent maze-like patterns.
-
-```
-TILE TYPES:
-  A: arc top→left, arc bottom→right
-  B: arc top→right, arc bottom→left (A rotated 90°)
-
-PLACEMENT:
-  - Random: 50/50 each cell
-  - Noise-based: Perlin threshold
-  - Image-based: brightness threshold
-
-PATH OPTIMIZATION:
-  Build connection graph, find Eulerian path to minimize pen lifts.
-```
 
 #### Wang Tiles
 Edge-matching tiles for seamless aperiodic patterns.

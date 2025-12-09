@@ -16,6 +16,8 @@ pub mod geometry;
 pub mod hatch;
 pub mod order;
 pub mod patterns;
+pub mod rng;
+pub mod sketchy;
 pub mod svg;
 
 // Re-export common types at crate root for convenience.
@@ -24,4 +26,6 @@ pub use geometry::{Line, Point, Polygon};
 pub use hatch::{generate_crosshatch_fill, generate_hatch_lines, generate_lines_fill};
 pub use order::{order_polygons, order_nearest_neighbor, calculate_travel_distance, OrderingStrategy};
 pub use patterns::Pattern;
+pub use rng::Rng;
+pub use sketchy::{SketchyConfig, sketchify_lines, polygon_to_lines};
 pub use svg::{extract_polygons_from_svg, SvgError};
