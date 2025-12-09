@@ -11,3 +11,6 @@ usvg = "0.45"
 
 # Path parsing for d="" attributes
 svgtypes = "0.16"
+
+# Curve flattening - converts Bézier curves to polylines
+lyon_geom = "1.0"

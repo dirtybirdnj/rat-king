@@ -14,6 +14,7 @@
 pub mod clip;
 pub mod geometry;
 pub mod hatch;
+pub mod order;
 pub mod patterns;
 pub mod svg;
 
@@ -21,5 +22,6 @@ pub mod svg;
 pub use clip::{clip_line_to_polygon, clip_lines_to_polygon, point_in_polygon};
 pub use geometry::{Line, Point, Polygon};
 pub use hatch::{generate_crosshatch_fill, generate_hatch_lines, generate_lines_fill};
+pub use order::{order_polygons, order_nearest_neighbor, calculate_travel_distance, OrderingStrategy};
 pub use patterns::Pattern;
 pub use svg::{extract_polygons_from_svg, SvgError};

@@ -2,8 +2,15 @@
 //!
 //! Uses usvg for complete SVG resolution (CSS, transforms, etc.)
 //! then walks the tree to extract path data as polygons.
+//!
+//! ## Curve Flattening
+//!
+//! SVG paths contain Bézier curves (cubic and quadratic). These must be
+//! "flattened" into line segments for polygon operations. We use lyon_geom
+//! for accurate curve approximation with a configurable tolerance.
 
 use crate::geometry::{Point, Polygon};
+use lyon_geom::{CubicBezierSegment, QuadraticBezierSegment, point};
 
 /// Error type for SVG parsing.
 ///
@@ -96,7 +103,14 @@ fn extract_from_node(node: &usvg::Node, polygons: &mut Vec<Polygon>) {
     }
 }
 
+/// Tolerance for curve flattening.
+/// Lower = more points, smoother curves, slower.
+/// 0.1 is good for plotters (sub-pixel accuracy at typical scales).
+const CURVE_TOLERANCE: f32 = 0.1;
+
 /// Convert a usvg path to our Polygon type.
+///
+/// Properly flattens Bézier curves using lyon_geom for accurate polygon boundaries.
 fn path_to_polygon(path: &usvg::Path) -> Option<Polygon> {
     let data = path.data();
     let id = path.id();
@@ -107,6 +121,7 @@ fn path_to_polygon(path: &usvg::Path) -> Option<Polygon> {
     // usvg already gives us absolute coordinates (no relative commands!)
 
     let mut points = Vec::new();
+    let mut last_point: Option<(f32, f32)> = None;
 
     for cmd in data.segments() {
         match cmd {
@@ -117,22 +132,66 @@ fn path_to_polygon(path: &usvg::Path) -> Option<Polygon> {
                     break;
                 }
                 points.push(Point::new(p.x as f64, p.y as f64));
+                last_point = Some((p.x, p.y));
             }
             usvg::tiny_skia_path::PathSegment::LineTo(p) => {
                 points.push(Point::new(p.x as f64, p.y as f64));
+                last_point = Some((p.x, p.y));
             }
-            usvg::tiny_skia_path::PathSegment::QuadTo(_, p) => {
-                // Approximate curve with endpoint
-                points.push(Point::new(p.x as f64, p.y as f64));
+            usvg::tiny_skia_path::PathSegment::QuadTo(ctrl, p) => {
+                // Properly flatten quadratic Bézier curve
+                if let Some((lx, ly)) = last_point {
+                    let curve = QuadraticBezierSegment {
+                        from: point(lx, ly),
+                        ctrl: point(ctrl.x, ctrl.y),
+                        to: point(p.x, p.y),
+                    };
+
+                    // Flatten curve to line segments
+                    // Callback receives LineSegment, we take the endpoint of each segment
+                    curve.for_each_flattened(CURVE_TOLERANCE, &mut |segment| {
+                        points.push(Point::new(segment.to.x as f64, segment.to.y as f64));
+                    });
+                } else {
+                    // Fallback: just add endpoint if no previous point
+                    points.push(Point::new(p.x as f64, p.y as f64));
+                }
+                last_point = Some((p.x, p.y));
             }
-            usvg::tiny_skia_path::PathSegment::CubicTo(_, _, p) => {
-                // Approximate curve with endpoint
-                points.push(Point::new(p.x as f64, p.y as f64));
+            usvg::tiny_skia_path::PathSegment::CubicTo(ctrl1, ctrl2, p) => {
+                // Properly flatten cubic Bézier curve
+                if let Some((lx, ly)) = last_point {
+                    let curve = CubicBezierSegment {
+                        from: point(lx, ly),
+                        ctrl1: point(ctrl1.x, ctrl1.y),
+                        ctrl2: point(ctrl2.x, ctrl2.y),
+                        to: point(p.x, p.y),
+                    };
+
+                    // Flatten curve to line segments
+                    // Callback receives LineSegment, we take the endpoint of each segment
+                    curve.for_each_flattened(CURVE_TOLERANCE, &mut |segment| {
+                        points.push(Point::new(segment.to.x as f64, segment.to.y as f64));
+                    });
+                } else {
+                    // Fallback: just add endpoint if no previous point
+                    points.push(Point::new(p.x as f64, p.y as f64));
+                }
+                last_point = Some((p.x, p.y));
             }
             usvg::tiny_skia_path::PathSegment::Close => {
                 // Path is closed - we have a polygon!
             }
         }
+    }
+
+    // Remove duplicate consecutive points that can occur from curve flattening
+    if points.len() >= 2 {
+        points.dedup_by(|a, b| {
+            let dx = (a.x - b.x).abs();
+            let dy = (a.y - b.y).abs();
+            dx < 1e-6 && dy < 1e-6
+        });
     }
 
     if points.len() >= 3 {
@@ -190,5 +249,56 @@ mod tests {
 
         let result = extract_polygons_from_svg(svg);
         assert!(matches!(result, Err(SvgError::NoPolygons)));
+    }
+
+    #[test]
+    fn curve_flattening_circle() {
+        // A circle uses cubic Bézier curves - without proper flattening,
+        // this would only have 4-5 points (just the endpoints)
+        let svg = r#"
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="40"/>
+            </svg>
+        "#;
+
+        let polygons = extract_polygons_from_svg(svg).unwrap();
+        assert_eq!(polygons.len(), 1);
+        // A properly flattened circle should have many points (not just 4)
+        // With tolerance 0.1 and radius 40, we expect ~50+ points
+        assert!(polygons[0].outer.len() > 20,
+            "Circle should have many points from curve flattening, got {}",
+            polygons[0].outer.len());
+    }
+
+    #[test]
+    fn curve_flattening_ellipse() {
+        let svg = r#"
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+                <ellipse cx="50" cy="50" rx="40" ry="20"/>
+            </svg>
+        "#;
+
+        let polygons = extract_polygons_from_svg(svg).unwrap();
+        assert_eq!(polygons.len(), 1);
+        assert!(polygons[0].outer.len() > 20,
+            "Ellipse should have many points from curve flattening, got {}",
+            polygons[0].outer.len());
+    }
+
+    #[test]
+    fn curve_flattening_path_with_bezier() {
+        // Path with cubic Bézier curve
+        let svg = r#"
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+                <path d="M 10,10 C 40,10 60,90 90,90 L 90,10 Z"/>
+            </svg>
+        "#;
+
+        let polygons = extract_polygons_from_svg(svg).unwrap();
+        assert_eq!(polygons.len(), 1);
+        // The cubic curve should be flattened to multiple points
+        assert!(polygons[0].outer.len() > 5,
+            "Path with Bézier should have multiple points, got {}",
+            polygons[0].outer.len());
     }
 }

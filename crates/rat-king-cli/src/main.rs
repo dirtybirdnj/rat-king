@@ -31,6 +31,7 @@ use ratatui_image::{picker::{Picker, ProtocolType}, protocol::StatefulProtocol, 
 
 use rat_king::{
     extract_polygons_from_svg, Line, Pattern, Polygon,
+    order_polygons, calculate_travel_distance, OrderingStrategy,
     patterns::{
         generate_lines_fill, generate_crosshatch_fill,
         generate_zigzag_fill, generate_wiggle_fill,
@@ -40,7 +41,7 @@ use rat_king::{
         generate_crossspiral_fill, generate_hilbert_fill,
         generate_gyroid_fill, generate_guilloche_fill,
         generate_lissajous_fill, generate_rose_fill,
-        generate_phyllotaxis_fill,
+        generate_phyllotaxis_fill, generate_pentagon15_fill,
     },
 };
 
@@ -757,6 +758,7 @@ fn print_usage(prog: &str) {
     eprintln!("  -s, --spacing <n>      Line spacing (default: 2.5)");
     eprintln!("  -a, --angle <deg>      Pattern angle (default: 45)");
     eprintln!("  -f, --format <fmt>     Output format: svg, json (default: svg)");
+    eprintln!("  --order <strategy>     Polygon ordering: document, nearest (default: nearest)");
     eprintln!("  --grouped              JSON only: group lines by input shape");
     eprintln!();
     eprintln!("Harness options:");
@@ -792,6 +794,7 @@ fn cmd_fill(args: &[String]) {
     let mut angle = 45.0;
     let mut format = OutputFormat::Svg;
     let mut grouped = false;
+    let mut order_strategy = OrderingStrategy::NearestNeighbor; // Default to optimized
 
     let mut i = 0;
     while i < args.len() {
@@ -831,6 +834,15 @@ fn cmd_fill(args: &[String]) {
                             std::process::exit(1);
                         }
                     };
+                }
+            }
+            "--order" => {
+                i += 1;
+                if i < args.len() {
+                    order_strategy = OrderingStrategy::from_name(&args[i]).unwrap_or_else(|| {
+                        eprintln!("Unknown order strategy: {}. Use 'document' or 'nearest'.", args[i]);
+                        std::process::exit(1);
+                    });
                 }
             }
             "--grouped" => {
@@ -873,16 +885,33 @@ fn cmd_fill(args: &[String]) {
 
     eprintln!("Loaded {} polygons", polygons.len());
 
+    // Calculate and display travel optimization
+    let order = order_polygons(&polygons, order_strategy);
+
+    if polygons.len() > 1 {
+        let doc_order: Vec<usize> = (0..polygons.len()).collect();
+        let doc_travel = calculate_travel_distance(&polygons, &doc_order);
+        let opt_travel = calculate_travel_distance(&polygons, &order);
+
+        if order_strategy == OrderingStrategy::NearestNeighbor {
+            let savings = ((doc_travel - opt_travel) / doc_travel * 100.0).max(0.0);
+            eprintln!("Travel optimization: {:.1} -> {:.1} ({:.0}% reduction)",
+                doc_travel, opt_travel, savings);
+        } else {
+            eprintln!("Using document order (travel: {:.1})", doc_travel);
+        }
+    }
+
     let start = Instant::now();
 
     // Generate output based on format and grouping
     let output = match (format, grouped) {
         (OutputFormat::Json, true) => {
-            // Per-polygon grouped JSON output
-            let shapes: Vec<JsonShape> = polygons
+            // Per-polygon grouped JSON output (respects ordering)
+            let shapes: Vec<JsonShape> = order
                 .iter()
-                .enumerate()
-                .map(|(idx, polygon)| {
+                .map(|&idx| {
+                    let polygon = &polygons[idx];
                     let lines = generate_pattern(pattern, polygon, spacing, angle);
                     JsonShape {
                         id: polygon.id.clone(),
@@ -905,10 +934,10 @@ fn cmd_fill(args: &[String]) {
             serde_json::to_string(&output).expect("Failed to serialize JSON")
         }
         (OutputFormat::Json, false) => {
-            // Flat JSON output
+            // Flat JSON output (respects ordering)
             let mut all_lines: Vec<Line> = Vec::new();
-            for polygon in &polygons {
-                let lines = generate_pattern(pattern, polygon, spacing, angle);
+            for &idx in &order {
+                let lines = generate_pattern(pattern, &polygons[idx], spacing, angle);
                 all_lines.extend(lines);
             }
 
@@ -926,10 +955,10 @@ fn cmd_fill(args: &[String]) {
             serde_json::to_string(&output).expect("Failed to serialize JSON")
         }
         (OutputFormat::Svg, _) => {
-            // SVG output (grouped flag is ignored)
+            // SVG output (respects ordering)
             let mut all_lines: Vec<Line> = Vec::new();
-            for polygon in &polygons {
-                let lines = generate_pattern(pattern, polygon, spacing, angle);
+            for &idx in &order {
+                let lines = generate_pattern(pattern, &polygons[idx], spacing, angle);
                 all_lines.extend(lines);
             }
 
@@ -1250,6 +1279,7 @@ fn generate_pattern(pattern: Pattern, polygon: &Polygon, spacing: f64, angle: f6
         Pattern::Phyllotaxis => generate_phyllotaxis_fill(polygon, spacing, angle),
         Pattern::Scribble => generate_scribble_fill(polygon, spacing, angle),
         Pattern::Gyroid => generate_gyroid_fill(polygon, spacing, angle),
+        Pattern::Pentagon15 => generate_pentagon15_fill(polygon, spacing * 3.0, angle),
     }
 }
 

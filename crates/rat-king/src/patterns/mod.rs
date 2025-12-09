@@ -16,6 +16,7 @@ mod guilloche;
 mod lissajous;
 mod rose;
 mod phyllotaxis;
+mod pentagon15;
 
 pub use zigzag::generate_zigzag_fill;
 pub use wiggle::generate_wiggle_fill;
@@ -31,6 +32,7 @@ pub use guilloche::generate_guilloche_fill;
 pub use lissajous::generate_lissajous_fill;
 pub use rose::generate_rose_fill;
 pub use phyllotaxis::generate_phyllotaxis_fill;
+pub use pentagon15::generate_pentagon15_fill;
 
 // Re-export from hatch module (already implemented)
 pub use crate::hatch::{generate_lines_fill, generate_crosshatch_fill};
@@ -55,6 +57,7 @@ pub enum Pattern {
     Phyllotaxis,
     Scribble,
     Gyroid,
+    Pentagon15,
 }
 
 impl Pattern {
@@ -78,6 +81,7 @@ impl Pattern {
             Pattern::Phyllotaxis,
             Pattern::Scribble,
             Pattern::Gyroid,
+            Pattern::Pentagon15,
         ]
     }
 
@@ -101,6 +105,7 @@ impl Pattern {
             Pattern::Phyllotaxis => "phyllotaxis",
             Pattern::Scribble => "scribble",
             Pattern::Gyroid => "gyroid",
+            Pattern::Pentagon15 => "pentagon15",
         }
     }
 
@@ -130,6 +135,7 @@ impl Pattern {
             "phyllotaxis" | "sunflower" => Some(Pattern::Phyllotaxis),
             "scribble" => Some(Pattern::Scribble),
             "gyroid" => Some(Pattern::Gyroid),
+            "pentagon15" | "pent15" | "pentagon" => Some(Pattern::Pentagon15),
             _ => None,
         }
     }
