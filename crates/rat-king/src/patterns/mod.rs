@@ -23,6 +23,10 @@ mod brick;
 mod truchet;
 mod stipple;
 mod peano;
+mod sierpinski;
+mod diagonal;
+mod herringbone;
+mod stripe;
 
 pub use zigzag::generate_zigzag_fill;
 pub use wiggle::generate_wiggle_fill;
@@ -45,6 +49,10 @@ pub use brick::generate_brick_fill;
 pub use truchet::generate_truchet_fill;
 pub use stipple::generate_stipple_fill;
 pub use peano::generate_peano_fill;
+pub use sierpinski::generate_sierpinski_fill;
+pub use diagonal::generate_diagonal_fill;
+pub use herringbone::generate_herringbone_fill;
+pub use stripe::{generate_stripe_fill, generate_stripe_fill_configured, StripeConfig};
 
 // Re-export from hatch module (already implemented)
 pub use crate::hatch::{generate_lines_fill, generate_crosshatch_fill};
@@ -76,6 +84,10 @@ pub enum Pattern {
     Truchet,
     Stipple,
     Peano,
+    Sierpinski,
+    Diagonal,
+    Herringbone,
+    Stripe,
 }
 
 impl Pattern {
@@ -106,6 +118,10 @@ impl Pattern {
             Pattern::Truchet,
             Pattern::Stipple,
             Pattern::Peano,
+            Pattern::Sierpinski,
+            Pattern::Diagonal,
+            Pattern::Herringbone,
+            Pattern::Stripe,
         ]
     }
 
@@ -136,6 +152,10 @@ impl Pattern {
             Pattern::Truchet => "truchet",
             Pattern::Stipple => "stipple",
             Pattern::Peano => "peano",
+            Pattern::Sierpinski => "sierpinski",
+            Pattern::Diagonal => "diagonal",
+            Pattern::Herringbone => "herringbone",
+            Pattern::Stripe => "stripe",
         }
     }
 
@@ -172,6 +192,10 @@ impl Pattern {
             "truchet" => Some(Pattern::Truchet),
             "stipple" | "dots" => Some(Pattern::Stipple),
             "peano" => Some(Pattern::Peano),
+            "sierpinski" | "arrowhead" => Some(Pattern::Sierpinski),
+            "diagonal" => Some(Pattern::Diagonal),
+            "herringbone" | "chevron" => Some(Pattern::Herringbone),
+            "stripe" | "stripes" | "bands" => Some(Pattern::Stripe),
             _ => None,
         }
     }

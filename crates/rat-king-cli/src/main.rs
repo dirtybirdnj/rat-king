@@ -45,6 +45,8 @@ use rat_king::{
         generate_pentagon14_fill, generate_grid_fill,
         generate_brick_fill, generate_truchet_fill,
         generate_stipple_fill, generate_peano_fill,
+        generate_sierpinski_fill, generate_diagonal_fill,
+        generate_herringbone_fill, generate_stripe_fill,
     },
 };
 
@@ -1289,6 +1291,10 @@ fn generate_pattern(pattern: Pattern, polygon: &Polygon, spacing: f64, angle: f6
         Pattern::Truchet => generate_truchet_fill(polygon, spacing * 2.0, angle),
         Pattern::Stipple => generate_stipple_fill(polygon, spacing, angle),
         Pattern::Peano => generate_peano_fill(polygon, spacing, angle),
+        Pattern::Sierpinski => generate_sierpinski_fill(polygon, spacing, angle),
+        Pattern::Diagonal => generate_diagonal_fill(polygon, spacing, angle),
+        Pattern::Herringbone => generate_herringbone_fill(polygon, spacing * 2.0, angle),
+        Pattern::Stripe => generate_stripe_fill(polygon, spacing * 2.0, angle),
     }
 }
 
