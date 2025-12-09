@@ -23,7 +23,7 @@ cargo install rat-king-cli
 ## CLI Commands
 
 ```bash
-# List all patterns (currently 18)
+# List all patterns (currently 30)
 rat-king patterns
 
 # Show help
@@ -101,7 +101,7 @@ rat-king fill test_assets/essex.svg -p lines --order nearest -o /dev/null
 
 ```bash
 # Quick visual test of all patterns
-for pattern in lines crosshatch zigzag wiggle spiral fermat concentric radial honeycomb crossspiral hilbert guilloche lissajous rose phyllotaxis scribble gyroid pentagon15; do
+for pattern in lines crosshatch zigzag wiggle spiral fermat concentric radial honeycomb crossspiral hilbert guilloche lissajous rose phyllotaxis scribble gyroid pentagon15 pentagon14 grid brick truchet stipple peano sierpinski diagonal herringbone stripe tessellation harmonograph; do
   echo "Testing: $pattern"
   rat-king fill test_assets/simple.svg -p $pattern -s 5 -o /tmp/test_$pattern.svg
 done
@@ -232,26 +232,34 @@ cd crates
 cargo test
 ```
 
-Expected: 62+ tests passing (as of Dec 8, 2024)
+Expected: 119+ unit tests + 8 integration tests passing (as of Dec 9, 2024)
 
 Key test modules:
 - `svg::tests` - SVG parsing and curve flattening
 - `order::tests` - Polygon ordering algorithms
-- `patterns::pentagon15::tests` - Pentagon15 pattern
-- `patterns::*::tests` - All pattern generators
+- `patterns::*::tests` - All 30 pattern generators
+- `integration.rs` - CLI end-to-end tests
 
 ---
 
 ## Version History
 
+### Dec 9, 2024
+- Added `harmonograph` pattern (decaying pendulum curves)
+- Added 8 CLI integration tests
+- Refactored patterns to use `PatternContext` utilities
+- Added `Pattern::generate()` method for centralized dispatch
+- Total: 30 patterns, 119 unit tests + 8 integration tests
+
 ### Dec 8, 2024
 - Added `lyon_geom` for proper Bézier curve flattening
 - Added `pentagon15` pattern (15th pentagonal tiling)
 - Added nearest-neighbor polygon ordering (`--order` flag)
+- Added 12 new patterns: pentagon14, grid, brick, truchet, stipple, peano, sierpinski, diagonal, herringbone, stripe, tessellation
 - Travel optimization shows % reduction in stderr
 
 ### Previous
-- 17 patterns implemented
+- Initial 17 patterns implemented
 - Sixel graphics in TUI
 - JSON output modes
 - Stdin support

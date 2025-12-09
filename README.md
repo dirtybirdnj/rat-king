@@ -102,7 +102,7 @@ The `--sketchy` flag applies a hand-drawn effect (inspired by [RoughJS](https://
 | `--seed <n>` | Random seed for reproducibility | - |
 | `--strokes` | Include polygon outlines | - |
 
-## Available Patterns (29 total)
+## Available Patterns (30 total)
 
 ![Pattern Reference](docs/all_patterns.png)
 
@@ -137,6 +137,7 @@ The `--sketchy` flag applies a hand-drawn effect (inspired by [RoughJS](https://
 | `herringbone` | V-shaped brick pattern | Fair (58%) | Zigzag bricks |
 | `stripe` | Horizontal parallel lines | Excellent (98%) | Classic hatching |
 | `tessellation` | Tiled pattern | Fair (52%) | Geometric tiles |
+| `harmonograph` | Pendulum simulation curves | Good (75%) | Spirograph-like |
 
 *Coverage ratings are based on test harness analysis at spacing=2.5, angle=45°*
 
@@ -270,20 +271,18 @@ impl Pattern {
             _ => None,
         }
     }
+
+    // Add to the generate() method match:
+    pub fn generate(&self, polygon: &Polygon, spacing: f64, angle: f64) -> Vec<Line> {
+        match self {
+            // ... existing patterns ...
+            Pattern::Mypattern => generate_mypattern_fill(polygon, spacing, angle),
+        }
+    }
 }
 ```
 
-**5. Wire up in CLI** in `crates/rat-king-cli/src/main.rs`:
-
-```rust
-// Add to imports
-use rat_king::patterns::generate_mypattern_fill;
-
-// Add to generate_pattern() match
-Pattern::Mypattern => generate_mypattern_fill(polygon, spacing, angle),
-```
-
-**6. Run tests and verify**
+**5. Run tests and verify**
 
 ```bash
 cd crates

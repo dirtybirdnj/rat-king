@@ -6,7 +6,7 @@ Research and implementation notes for rat-king fill patterns.
 
 ## Current Status (December 2024)
 
-### Implemented Patterns (29 total)
+### Implemented Patterns (30 total)
 
 All patterns are fully implemented in Rust. Coverage ratings from test harness (spacing=2.5, angle=45°):
 
@@ -41,6 +41,7 @@ All patterns are fully implemented in Rust. Coverage ratings from test harness (
 | `herringbone` | V-shaped brick pattern | Fair (58%) | Done |
 | `stripe` | Horizontal parallel lines | Excellent (98%) | Done |
 | `tessellation` | Geometric tiled pattern | Fair (52%) | Done |
+| `harmonograph` | Pendulum simulation curves | Good (75%) | Done |
 
 *N/A: Pattern generates too many elements for automated visual analysis at default spacing
 
@@ -59,14 +60,6 @@ All patterns are fully implemented in Rust. Coverage ratings from test harness (
 ## Future Patterns (Research)
 
 ### Mathematical Curves
-
-#### Harmonograph
-```
-x(t) = A1*sin(f1*t + p1)*decay + A2*sin(f2*t + p2)*decay
-y(t) = A3*sin(f3*t + p3)*decay + A4*sin(f4*t + p4)*decay
-
-Creates spirograph-like patterns, single continuous line.
-```
 
 #### Superformula (Gielis curves)
 ```
