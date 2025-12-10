@@ -5,11 +5,13 @@
 //! - `benchmark` - Benchmark pattern generation performance
 //! - `harness` - Run test harness with visual analysis
 //! - `patterns` - List available patterns
+//! - `analyze` - Analyze SVG structure for AI agents
 
 pub mod common;
 pub mod fill;
 pub mod benchmark;
 pub mod harness;
+pub mod analyze;
 
 pub use common::generate_pattern;
 pub use fill::cmd_fill;
@@ -18,3 +20,4 @@ pub use harness::{
     AnalysisResult, HarnessResult, VisualHarnessReport,
     analyze_pattern_vs_solid, generate_diff_image,
 };
+pub use analyze::cmd_analyze;

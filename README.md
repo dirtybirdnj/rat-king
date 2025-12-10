@@ -87,6 +87,53 @@ rat-king harness input.svg --analyze --json -o results/
 
 # List all available patterns
 rat-king patterns
+
+# Analyze SVG structure (for AI agents)
+rat-king analyze large.svg                      # Quick summary stats
+rat-king analyze large.svg --json               # Machine-readable JSON
+rat-king analyze large.svg --tree --depth 3     # Group hierarchy
+rat-king analyze large.svg --sample 5           # Sample paths
+rat-king analyze large.svg --color "#FF0000"    # Find elements by color
+rat-king analyze large.svg --layer "Background" # Layer stats
+rat-king analyze large.svg --region "0,0,100,100"  # Elements in region
+```
+
+### Analyze Command (AI Agent Support)
+
+The `analyze` command helps AI agents inspect large SVG files (15MB-150MB) without token overload:
+
+| Option | Description |
+|--------|-------------|
+| `--json` | Output as JSON (default: human-readable) |
+| `--tree` | Show group hierarchy with element counts |
+| `--depth N` | Limit tree depth |
+| `--sample N` | Get N evenly-sampled paths with metadata |
+| `--color "#HEX"` | Find elements with specific fill/stroke color |
+| `--layer "ID"` | Get stats for a specific layer/group |
+| `--region "x,y,w,h"` | Find elements within bounding box |
+| `--id "ID"` | Get detailed info for a specific element |
+
+**Example output:**
+```
+SVG Analysis
+============
+
+File: 15.2 MB
+viewBox: 0 0 1920 1080
+
+Elements (4523 total):
+  paths: 3891
+  groups: 412
+
+Structure:
+  transforms: 234
+  top-level groups: 5
+    - Background (1203 children)
+    - Layer_1 (892 children)
+
+Fill colors (23 unique):
+  #ff0000 (456x)
+  #00ff00 (234x)
 ```
 
 ### Sketchy Effect Options

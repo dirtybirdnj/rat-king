@@ -35,7 +35,7 @@ use rat_king::{extract_polygons_from_svg, Line, Pattern, Polygon};
 
 // Import CLI commands
 use cli::{
-    cmd_fill, cmd_benchmark, generate_pattern,
+    cmd_fill, cmd_benchmark, cmd_analyze, generate_pattern,
     AnalysisResult, HarnessResult, VisualHarnessReport,
     analyze_pattern_vs_solid, generate_diff_image,
 };
@@ -936,6 +936,10 @@ fn main() {
                 cmd_harness(&args[2..]);
                 return;
             }
+            "analyze" => {
+                cmd_analyze(&args[2..]);
+                return;
+            }
             "help" | "--help" | "-h" => {
                 print_usage(&args[0]);
                 return;
@@ -1329,6 +1333,7 @@ fn print_usage(prog: &str) {
     eprintln!("  {} fill <svg> -p <pattern> [options]", prog);
     eprintln!("  {} benchmark <svg> [-p <pattern>]", prog);
     eprintln!("  {} harness [svg] [-p pattern1,pattern2,...]", prog);
+    eprintln!("  {} analyze <svg> [--json] [query options]", prog);
     eprintln!("  {} patterns", prog);
     eprintln!();
     eprintln!("Fill options:");
@@ -1356,6 +1361,16 @@ fn print_usage(prog: &str) {
     eprintln!("  -o, --output     Output directory for screenshots (default: harness_output)");
     eprintln!("  --width          Screenshot width in pixels (default: 800)");
     eprintln!("  --height         Screenshot height in pixels (default: 600)");
+    eprintln!();
+    eprintln!("Analyze options:");
+    eprintln!("  --json                  Output as JSON (default: human-readable)");
+    eprintln!("  --region \"x,y,w,h\"      Find elements within bounding box");
+    eprintln!("  --color \"#FF0000\"       Find elements with specific color");
+    eprintln!("  --layer \"LayerID\"       Get stats for a specific group");
+    eprintln!("  --sample N              Get N sampled paths with metadata");
+    eprintln!("  --id \"elementID\"        Get details for specific element");
+    eprintln!("  --tree                  Show group hierarchy");
+    eprintln!("  --depth N               Limit tree depth");
     eprintln!();
     eprintln!("Stdin support:");
     eprintln!("  Use '-' as input file to read SVG from stdin:");

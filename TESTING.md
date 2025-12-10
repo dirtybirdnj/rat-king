@@ -37,6 +37,12 @@ rat-king fill <input.svg> -p <pattern> [options] -o <output.svg>
 
 # Benchmark pattern generation
 rat-king benchmark <input.svg> -p <pattern>
+
+# Analyze SVG structure (AI agent support)
+rat-king analyze <input.svg> [options]
+rat-king analyze large.svg --json          # Machine-readable output
+rat-king analyze large.svg --tree          # Hierarchical view
+rat-king analyze large.svg --sample 5      # Sample paths
 ```
 
 ---
