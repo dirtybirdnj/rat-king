@@ -16,6 +16,8 @@ Essex.svg (314 polygons)
 Speedup: 200x faster
 ```
 
+![divider](docs/banners/hr1.png)
+
 ## Installation
 
 ### From crates.io (recommended)
@@ -49,6 +51,8 @@ Or from git:
 [dependencies]
 rat-king = { git = "https://github.com/dirtybirdnj/rat-king" }
 ```
+
+![divider](docs/banners/hr2.png)
 
 ## Usage
 
@@ -151,6 +155,8 @@ The `--sketchy` flag applies a hand-drawn effect (inspired by [RoughJS](https://
 | `--seed <n>` | Random seed for reproducibility | - |
 | `--strokes` | Include polygon outlines | - |
 
+![divider](docs/banners/hr3.png)
+
 ## Available Patterns (30 total)
 
 | Pattern | Description | Coverage | Visual Style |
@@ -188,6 +194,8 @@ The `--sketchy` flag applies a hand-drawn effect (inspired by [RoughJS](https://
 
 *Coverage ratings are based on test harness analysis at spacing=2.5, angle=45°*
 
+![divider](docs/banners/hr4.png)
+
 ## Architecture
 
 ```
@@ -208,6 +216,8 @@ rat-king/
 └── test_assets/               # Test SVGs (public domain)
     └── essex.svg              # 314 polygons - USGS county boundaries
 ```
+
+![divider](docs/banners/hr5.png)
 
 ## Adding a New Pattern
 
@@ -349,6 +359,8 @@ git push origin add-mypattern
 # Open a pull request
 ```
 
+![divider](docs/banners/hr6.png)
+
 ## Versioning & Updates
 
 ### For App Developers
@@ -399,6 +411,8 @@ cargo update
 
 New patterns = minor version bump. Apps using `rat-king = "0.1"` will automatically get new patterns on `cargo update`.
 
+![divider](docs/banners/hr7.png)
+
 ## Integration Examples
 
 ### Python (subprocess)
@@ -431,6 +445,8 @@ for poly in &polygons {
 }
 ```
 
+![divider](docs/banners/hr8.png)
+
 ## Development
 
 ```bash
@@ -440,6 +456,8 @@ cargo test               # Run all tests
 cargo run --release      # Run TUI
 cargo run --release -- benchmark test_assets/essex.svg -p lines
 ```
+
+![divider](docs/banners/hr9.png)
 
 ## Why Rust?
 
@@ -454,10 +472,14 @@ Rust gives us:
 - Single binary distribution
 - Easy cross-platform builds
 
+![divider](docs/banners/hr10.png)
+
 ## Related Projects
 
 - [svg-grouper](https://github.com/dirtybirdnj/svg-grouper) - GUI for plotter SVG prep
 - [vpype](https://github.com/abey79/vpype) - Swiss-army knife for plotter workflows
+
+![divider](docs/banners/hr11.png)
 
 ## License
 

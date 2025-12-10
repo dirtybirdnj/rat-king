@@ -35,7 +35,7 @@ use rat_king::{extract_polygons_from_svg, Line, Pattern, Polygon};
 
 // Import CLI commands
 use cli::{
-    cmd_fill, cmd_benchmark, cmd_analyze, cmd_swatches, generate_pattern,
+    cmd_fill, cmd_benchmark, cmd_analyze, cmd_swatches, cmd_banner, generate_pattern,
     AnalysisResult, HarnessResult, VisualHarnessReport,
     analyze_pattern_vs_solid, generate_diff_image,
 };
@@ -942,6 +942,10 @@ fn main() {
             }
             "swatches" => {
                 cmd_swatches(&args[2..]);
+                return;
+            }
+            "banner" => {
+                cmd_banner(&args[2..]);
                 return;
             }
             "help" | "--help" | "-h" => {
