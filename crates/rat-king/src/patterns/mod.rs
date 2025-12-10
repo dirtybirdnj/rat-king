@@ -57,7 +57,13 @@ pub use sierpinski::generate_sierpinski_fill;
 pub use diagonal::generate_diagonal_fill;
 pub use herringbone::generate_herringbone_fill;
 pub use stripe::{generate_stripe_fill, generate_stripe_fill_configured, StripeConfig};
-pub use tessellation::generate_tessellation_fill;
+pub use tessellation::{
+    generate_tessellation_fill,
+    fill_via_tessellation,
+    fill_triangle_with_lines,
+    fill_polygon_with_lines_fast,
+    triangulate,
+};
 pub use harmonograph::generate_harmonograph_fill;
 
 // Re-export from hatch module (already implemented)
