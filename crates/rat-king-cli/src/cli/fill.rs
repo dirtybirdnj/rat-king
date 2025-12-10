@@ -206,6 +206,11 @@ pub fn cmd_fill(args: &[String]) {
                 print_usage();
                 return;
             }
+            "-" => {
+                if svg_path.is_none() {
+                    svg_path = Some("-");
+                }
+            }
             path if !path.starts_with('-') => {
                 if svg_path.is_none() {
                     svg_path = Some(path);
