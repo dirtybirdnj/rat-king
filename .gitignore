@@ -15,6 +15,9 @@ crates/target/
 # Test output
 test_output/
 *.svg.out
+test_assets/*_output*.svg
+test_assets/*_chained*.svg
+harness-results.json
 
 # Session files (local development notes)
 LAST_SESSION.md
