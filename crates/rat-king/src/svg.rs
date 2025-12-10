@@ -114,9 +114,11 @@ const CURVE_TOLERANCE: f32 = 0.1;
 /// like stamps with multiple circles or text with multiple characters.
 ///
 /// Properly flattens Bézier curves using lyon_geom for accurate polygon boundaries.
+/// Applies the path's absolute transform (including all parent group transforms).
 fn path_to_polygons(path: &usvg::Path) -> Vec<Polygon> {
     let data = path.data();
     let id = path.id();
+    let transform = path.abs_transform();
 
     // ## Rust Lesson #23: Iterator Peekable & Adapters
     //
@@ -127,6 +129,13 @@ fn path_to_polygons(path: &usvg::Path) -> Vec<Polygon> {
     let mut points = Vec::new();
     let mut last_point: Option<(f32, f32)> = None;
     let mut subpath_index = 0;
+
+    // Helper to apply transform to a point and create a Point
+    let transform_point = |x: f32, y: f32| {
+        let mut pt = usvg::tiny_skia_path::Point { x, y };
+        transform.map_point(&mut pt);
+        Point::new(pt.x as f64, pt.y as f64)
+    };
 
     // Helper to finalize current subpath as a polygon
     let finalize_subpath = |points: &mut Vec<Point>, subpath_idx: usize| {
@@ -165,11 +174,11 @@ fn path_to_polygons(path: &usvg::Path) -> Vec<Polygon> {
                     }
                     subpath_index += 1;
                 }
-                points.push(Point::new(p.x as f64, p.y as f64));
+                points.push(transform_point(p.x, p.y));
                 last_point = Some((p.x, p.y));
             }
             usvg::tiny_skia_path::PathSegment::LineTo(p) => {
-                points.push(Point::new(p.x as f64, p.y as f64));
+                points.push(transform_point(p.x, p.y));
                 last_point = Some((p.x, p.y));
             }
             usvg::tiny_skia_path::PathSegment::QuadTo(ctrl, p) => {
@@ -184,11 +193,11 @@ fn path_to_polygons(path: &usvg::Path) -> Vec<Polygon> {
                     // Flatten curve to line segments
                     // Callback receives LineSegment, we take the endpoint of each segment
                     curve.for_each_flattened(CURVE_TOLERANCE, &mut |segment| {
-                        points.push(Point::new(segment.to.x as f64, segment.to.y as f64));
+                        points.push(transform_point(segment.to.x, segment.to.y));
                     });
                 } else {
                     // Fallback: just add endpoint if no previous point
-                    points.push(Point::new(p.x as f64, p.y as f64));
+                    points.push(transform_point(p.x, p.y));
                 }
                 last_point = Some((p.x, p.y));
             }
@@ -205,11 +214,11 @@ fn path_to_polygons(path: &usvg::Path) -> Vec<Polygon> {
                     // Flatten curve to line segments
                     // Callback receives LineSegment, we take the endpoint of each segment
                     curve.for_each_flattened(CURVE_TOLERANCE, &mut |segment| {
-                        points.push(Point::new(segment.to.x as f64, segment.to.y as f64));
+                        points.push(transform_point(segment.to.x, segment.to.y));
                     });
                 } else {
                     // Fallback: just add endpoint if no previous point
-                    points.push(Point::new(p.x as f64, p.y as f64));
+                    points.push(transform_point(p.x, p.y));
                 }
                 last_point = Some((p.x, p.y));
             }
@@ -493,5 +502,31 @@ mod tests {
 
         // Same winding = both are outer shapes, not parent/hole
         assert_eq!(polygons.len(), 2, "Should have 2 separate polygons (same winding), got {}", polygons.len());
+    }
+
+    #[test]
+    fn group_transforms_are_applied() {
+        // Test that transforms from parent groups are applied to path coordinates
+        // The path coordinates are at 110-190, but the group transform should
+        // shift them to 10-90 (matching the viewBox 0-100)
+        let svg = r#"
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+                <g transform="translate(-100, -100)">
+                    <path d="M 110,110 L 190,110 L 190,190 L 110,190 Z"/>
+                </g>
+            </svg>
+        "#;
+
+        let polygons = extract_polygons_from_svg(svg).unwrap();
+        assert_eq!(polygons.len(), 1, "Should have 1 polygon");
+
+        // Check that coordinates are transformed (should be around 10-90, not 110-190)
+        let polygon = &polygons[0];
+        for point in &polygon.outer {
+            assert!(point.x >= 9.0 && point.x <= 91.0,
+                "X coordinate {} should be in range 10-90 after transform", point.x);
+            assert!(point.y >= 9.0 && point.y <= 91.0,
+                "Y coordinate {} should be in range 10-90 after transform", point.y);
+        }
     }
 }

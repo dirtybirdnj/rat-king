@@ -990,19 +990,19 @@ fn run_tui(svg_path: &str) -> Result<(), String> {
     enable_raw_mode().map_err(|e| e.to_string())?;
     stdout().execute(EnterAlternateScreen).map_err(|e| e.to_string())?;
     stdout().execute(EnableMouseCapture).map_err(|e| e.to_string())?;
-    let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))
-        .map_err(|e| e.to_string())?;
 
-    // Create app
-    let mut app = App::new(svg_path)?;
+    // Use a closure to ensure cleanup always runs
+    let result = (|| {
+        let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))
+            .map_err(|e| e.to_string())?;
+        let mut app = App::new(svg_path)?;
+        run_app(&mut terminal, &mut app)
+    })();
 
-    // Main loop
-    let result = run_app(&mut terminal, &mut app);
-
-    // Restore terminal
-    stdout().execute(DisableMouseCapture).map_err(|e| e.to_string())?;
-    disable_raw_mode().map_err(|e| e.to_string())?;
-    stdout().execute(LeaveAlternateScreen).map_err(|e| e.to_string())?;
+    // Cleanup ALWAYS runs, regardless of result
+    let _ = stdout().execute(DisableMouseCapture);
+    let _ = disable_raw_mode();
+    let _ = stdout().execute(LeaveAlternateScreen);
 
     result
 }
