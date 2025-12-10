@@ -35,7 +35,7 @@ use rat_king::{extract_polygons_from_svg, Line, Pattern, Polygon};
 
 // Import CLI commands
 use cli::{
-    cmd_fill, cmd_benchmark, cmd_analyze, generate_pattern,
+    cmd_fill, cmd_benchmark, cmd_analyze, cmd_swatches, generate_pattern,
     AnalysisResult, HarnessResult, VisualHarnessReport,
     analyze_pattern_vs_solid, generate_diff_image,
 };
@@ -940,6 +940,10 @@ fn main() {
                 cmd_analyze(&args[2..]);
                 return;
             }
+            "swatches" => {
+                cmd_swatches(&args[2..]);
+                return;
+            }
             "help" | "--help" | "-h" => {
                 print_usage(&args[0]);
                 return;
@@ -1334,6 +1338,7 @@ fn print_usage(prog: &str) {
     eprintln!("  {} benchmark <svg> [-p <pattern>]", prog);
     eprintln!("  {} harness [svg] [-p pattern1,pattern2,...]", prog);
     eprintln!("  {} analyze <svg> [--json] [query options]", prog);
+    eprintln!("  {} swatches [-o output.svg] [options]", prog);
     eprintln!("  {} patterns", prog);
     eprintln!();
     eprintln!("Fill options:");
@@ -1371,6 +1376,14 @@ fn print_usage(prog: &str) {
     eprintln!("  --id \"elementID\"        Get details for specific element");
     eprintln!("  --tree                  Show group hierarchy");
     eprintln!("  --depth N               Limit tree depth");
+    eprintln!();
+    eprintln!("Swatches options:");
+    eprintln!("  -o, --output <file>     Output SVG file (default: pattern_swatches.svg)");
+    eprintln!("  --stroke <color>        Line color (default: black)");
+    eprintln!("  --fill <color>          Swatch background (default: none)");
+    eprintln!("  -s, --spacing <n>       Pattern spacing (default: 4.0)");
+    eprintln!("  --png <file>            Also generate PNG output");
+    eprintln!("  --png-scale <n>         PNG scale factor (default: 2.0)");
     eprintln!();
     eprintln!("Stdin support:");
     eprintln!("  Use '-' as input file to read SVG from stdin:");

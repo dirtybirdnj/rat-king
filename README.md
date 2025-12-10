@@ -2,6 +2,8 @@
 
 **Blazing-fast fill pattern generation for pen plotters.** Written in Rust for maximum performance.
 
+![30 Pattern Swatches](docs/all_patterns_color.png)
+
 ## Performance
 
 rat-king processes complex SVGs in milliseconds:
@@ -151,8 +153,6 @@ The `--sketchy` flag applies a hand-drawn effect (inspired by [RoughJS](https://
 
 ## Available Patterns (30 total)
 
-![Pattern Reference](docs/all_patterns.png)
-
 | Pattern | Description | Coverage | Visual Style |
 |---------|-------------|----------|--------------|
 | `lines` | Parallel line hatching | Excellent (99%) | Classic crosshatch base |
@@ -202,7 +202,8 @@ rat-king/
 │   └── rat-king-cli/          # CLI/TUI binary
 │       └── src/main.rs        # TUI + fill, benchmark, harness, patterns commands
 ├── docs/                      # Documentation and assets
-│   ├── all_patterns.png       # Pattern reference image
+│   ├── all_patterns_color.png # Pattern reference (colorful)
+│   ├── all_patterns.png       # Pattern reference (B&W)
 │   └── all_patterns.pdf       # Pattern reference PDF
 └── test_assets/               # Test SVGs (public domain)
     └── essex.svg              # 314 polygons - USGS county boundaries
