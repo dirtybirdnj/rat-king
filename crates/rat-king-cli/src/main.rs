@@ -914,8 +914,16 @@ impl App {
     }
 }
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 fn main() {
     let args: Vec<String> = env::args().collect();
+
+    // Check for --version flag
+    if args.iter().any(|a| a == "--version" || a == "-V") {
+        println!("rat-king {}", VERSION);
+        return;
+    }
 
     // Check for CLI subcommands
     if args.len() >= 2 {
@@ -929,7 +937,7 @@ fn main() {
                 return;
             }
             "patterns" => {
-                cmd_patterns();
+                cmd_patterns(&args[2..]);
                 return;
             }
             "harness" => {
@@ -1406,10 +1414,17 @@ fn print_usage(prog: &str) {
     eprintln!("  q / Esc       Quit");
 }
 
-fn cmd_patterns() {
-    println!("Available patterns:");
-    for pattern in Pattern::all() {
-        println!("  {}", pattern.name());
+fn cmd_patterns(args: &[String]) {
+    let json_output = args.iter().any(|a| a == "--json");
+
+    if json_output {
+        let names: Vec<&str> = Pattern::all().iter().map(|p| p.name()).collect();
+        println!("{}", serde_json::to_string(&names).unwrap());
+    } else {
+        println!("Available patterns:");
+        for pattern in Pattern::all() {
+            println!("  {}", pattern.name());
+        }
     }
 }
 

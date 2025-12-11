@@ -3,6 +3,7 @@
 //! Creates horizontal strips of random patterns, useful as visual dividers.
 
 use std::fs;
+use std::io::{self, Write};
 use rand::prelude::*;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
@@ -31,6 +32,7 @@ pub fn cmd_banner(args: &[String]) {
     let mut seed: Option<u64> = None;
     let mut whitelist: Option<Vec<String>> = None;
     let mut blacklist: Option<Vec<String>> = None;
+    let mut quiet = false;
 
     // Parse arguments
     let mut i = 0;
@@ -84,6 +86,13 @@ pub fn cmd_banner(args: &[String]) {
                     seed = args[i].parse().ok();
                 }
             }
+            "-p" | "--pattern" => {
+                // Shorthand for single pattern (like fill -p)
+                i += 1;
+                if i < args.len() {
+                    whitelist = Some(vec![args[i].clone()]);
+                }
+            }
             "--whitelist" | "--only" => {
                 i += 1;
                 if i < args.len() {
@@ -95,6 +104,9 @@ pub fn cmd_banner(args: &[String]) {
                 if i < args.len() {
                     blacklist = Some(args[i].split(',').map(|s| s.trim().to_string()).collect());
                 }
+            }
+            "-q" | "--quiet" => {
+                quiet = true;
             }
             "-h" | "--help" => {
                 print_usage();
@@ -116,9 +128,11 @@ pub fn cmd_banner(args: &[String]) {
     let height_pts = height_inches * 72.0;
     let cell_width = width_pts / cell_count as f64;
 
-    eprintln!("Generating pattern banner...");
-    eprintln!("  Size: {}\" × {}\" ({} × {} pts)", width_inches, height_inches, width_pts as i32, height_pts as i32);
-    eprintln!("  Cells: {} @ {:.1}pts each", cell_count, cell_width);
+    if !quiet {
+        eprintln!("Generating pattern banner...");
+        eprintln!("  Size: {}\" × {}\" ({} × {} pts)", width_inches, height_inches, width_pts as i32, height_pts as i32);
+        eprintln!("  Cells: {} @ {:.1}pts each", cell_count, cell_width);
+    }
 
     // Get all patterns and filter by whitelist/blacklist
     let all_patterns = Pattern::all();
@@ -148,7 +162,9 @@ pub fn cmd_banner(args: &[String]) {
         return;
     }
 
-    eprintln!("  Patterns: {} available", patterns.len());
+    if !quiet {
+        eprintln!("  Patterns: {} available", patterns.len());
+    }
     let mut svg_content = String::new();
 
     // SVG header
@@ -201,24 +217,40 @@ pub fn cmd_banner(args: &[String]) {
     }
 
     svg_content.push_str("</svg>\n");
-    eprintln!("Done!");
+    if !quiet {
+        eprintln!("Done!");
+    }
 
-    // Write SVG
-    fs::write(&output_path, &svg_content).expect("Failed to write SVG");
-    eprintln!("Wrote: {}", output_path);
+    // Write SVG (support stdout with "-")
+    if output_path == "-" {
+        // Write to stdout
+        let stdout = io::stdout();
+        let mut handle = stdout.lock();
+        handle.write_all(svg_content.as_bytes()).expect("Failed to write to stdout");
+    } else {
+        fs::write(&output_path, &svg_content).expect("Failed to write SVG");
+        if !quiet {
+            eprintln!("Wrote: {}", output_path);
+        }
+    }
 
-    // Generate PNG if requested
+    // Generate PNG if requested (not supported with stdout output)
     if let Some(png_path) = png_output {
-        generate_png(&svg_content, &png_path, png_scale, width_pts, height_pts);
+        if output_path == "-" && !quiet {
+            eprintln!("Note: PNG output requires file output, not stdout");
+        }
+        generate_png(&svg_content, &png_path, png_scale, width_pts, height_pts, quiet);
     }
 }
 
 /// Generate PNG from SVG content using resvg.
-fn generate_png(svg_content: &str, png_path: &str, scale: f64, width: f64, height: f64) {
+fn generate_png(svg_content: &str, png_path: &str, scale: f64, width: f64, height: f64, quiet: bool) {
     use resvg::usvg;
     use tiny_skia::Pixmap;
 
-    eprint!("Generating PNG at {}x scale...", scale);
+    if !quiet {
+        eprint!("Generating PNG at {}x scale...", scale);
+    }
 
     let options = usvg::Options::default();
     let tree = match usvg::Tree::from_str(svg_content, &options) {
@@ -246,7 +278,7 @@ fn generate_png(svg_content: &str, png_path: &str, scale: f64, width: f64, heigh
     resvg::render(&tree, transform, &mut pixmap.as_mut());
 
     match pixmap.save_png(png_path) {
-        Ok(_) => eprintln!(" done!\nWrote: {} ({}x{})", png_path, pixmap_width, pixmap_height),
+        Ok(_) => if !quiet { eprintln!(" done!\nWrote: {} ({}x{})", png_path, pixmap_width, pixmap_height) },
         Err(e) => eprintln!(" failed: {}", e),
     }
 }
@@ -259,7 +291,8 @@ pub fn print_usage() {
     eprintln!("    rat-king banner [OPTIONS]");
     eprintln!();
     eprintln!("OPTIONS:");
-    eprintln!("    -o, --output <file>    Output SVG file (default: pattern_banner.svg)");
+    eprintln!("    -o, --output <file>    Output SVG file (- for stdout, default: pattern_banner.svg)");
+    eprintln!("    -p, --pattern <name>   Use single pattern (shorthand for --only)");
     eprintln!("    -w, --width <inches>   Banner width (default: 12)");
     eprintln!("    --height <inches>      Banner height (default: 1)");
     eprintln!("    -n, --cells <n>        Number of pattern cells (default: 50)");
@@ -267,8 +300,10 @@ pub fn print_usage() {
     eprintln!("    --png <file>           Also generate PNG output");
     eprintln!("    --png-scale <n>        PNG scale factor (default: 2.0)");
     eprintln!("    --seed <n>             Random seed for reproducibility");
+    eprintln!("    -q, --quiet            Suppress info messages (for piping)");
     eprintln!();
     eprintln!("PATTERN FILTERING:");
+    eprintln!("    -p, --pattern <name>   Single pattern mode (like fill -p)");
     eprintln!("    --whitelist <p1,p2>    Only use these patterns (comma-separated)");
     eprintln!("    --only <p1,p2>         Alias for --whitelist");
     eprintln!("    --blacklist <p1,p2>    Exclude these patterns (comma-separated)");
@@ -283,6 +318,9 @@ pub fn print_usage() {
     eprintln!("EXAMPLES:");
     eprintln!("    # Generate random banner");
     eprintln!("    rat-king banner -o hr1.svg --png hr1.png");
+    eprintln!();
+    eprintln!("    # Single pattern preview (for UI swatches)");
+    eprintln!("    rat-king banner -p crosshatch -o - -q | process_svg");
     eprintln!();
     eprintln!("    # Only use simple line patterns");
     eprintln!("    rat-king banner --only lines,crosshatch,zigzag,diagonal -o simple.svg");

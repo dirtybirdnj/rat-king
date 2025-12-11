@@ -80,6 +80,7 @@ pub fn cmd_fill(args: &[String]) {
     let mut sketchy_config: Option<SketchyConfig> = None;
     let mut raw_output = false;  // --raw: output individual lines instead of chained polylines
     let mut chain_tolerance = 0.1;  // --chain-tolerance: max distance to consider endpoints connected
+    let mut quiet = false;  // --quiet: suppress info messages
 
     let mut i = 0;
     while i < args.len() {
@@ -202,6 +203,9 @@ pub fn cmd_fill(args: &[String]) {
                     chain_tolerance = args[i].parse().unwrap_or(0.1);
                 }
             }
+            "-q" | "--quiet" => {
+                quiet = true;
+            }
             "-h" | "--help" => {
                 print_usage();
                 return;
@@ -236,13 +240,13 @@ pub fn cmd_fill(args: &[String]) {
 
     // Read SVG content
     let svg_content = if svg_path == "-" {
-        eprintln!("Reading SVG from stdin...");
+        if !quiet { eprintln!("Reading SVG from stdin..."); }
         let mut buffer = String::new();
         io::stdin().read_to_string(&mut buffer)
             .expect("Failed to read from stdin");
         buffer
     } else {
-        eprintln!("Loading: {}", svg_path);
+        if !quiet { eprintln!("Loading: {}", svg_path); }
         fs::read_to_string(svg_path)
             .expect("Failed to read SVG file")
     };
@@ -251,15 +255,17 @@ pub fn cmd_fill(args: &[String]) {
         .expect("Failed to parse SVG");
 
     let with_holes: Vec<_> = polygons.iter().filter(|p| !p.holes.is_empty()).collect();
-    eprintln!("Loaded {} polygons ({} with holes, {} total holes)",
-        polygons.len(),
-        with_holes.len(),
-        with_holes.iter().map(|p| p.holes.len()).sum::<usize>());
+    if !quiet {
+        eprintln!("Loaded {} polygons ({} with holes, {} total holes)",
+            polygons.len(),
+            with_holes.len(),
+            with_holes.iter().map(|p| p.holes.len()).sum::<usize>());
+    }
 
     // Calculate travel optimization
     let order = order_polygons(&polygons, order_strategy);
 
-    if polygons.len() > 1 {
+    if polygons.len() > 1 && !quiet {
         let doc_order: Vec<usize> = (0..polygons.len()).collect();
         let doc_travel = calculate_travel_distance(&polygons, &doc_order);
         let opt_travel = calculate_travel_distance(&polygons, &order);
@@ -313,9 +319,11 @@ pub fn cmd_fill(args: &[String]) {
 
             let elapsed = start.elapsed();
             let total_lines: usize = shapes.iter().map(|s| s.lines.len()).sum();
-            eprintln!("Generated {} lines in {} shapes in {:?}", total_lines, shapes.len(), elapsed);
-            if sketchy_config.is_some() {
-                eprintln!("Applied sketchy effect");
+            if !quiet {
+                eprintln!("Generated {} lines in {} shapes in {:?}", total_lines, shapes.len(), elapsed);
+                if sketchy_config.is_some() {
+                    eprintln!("Applied sketchy effect");
+                }
             }
 
             serde_json::to_string(&JsonOutputGrouped { shapes }).expect("Failed to serialize JSON")
@@ -336,10 +344,12 @@ pub fn cmd_fill(args: &[String]) {
             let stats = ChainStats::from_chains(all_lines.len(), &chains);
 
             let elapsed = start.elapsed();
-            eprintln!("Generated {} lines -> {} chains ({:.0}% reduction) in {:?}",
-                all_lines.len(), chains.len(), stats.reduction_ratio * 100.0, elapsed);
-            if sketchy_config.is_some() {
-                eprintln!("Applied sketchy effect");
+            if !quiet {
+                eprintln!("Generated {} lines -> {} chains ({:.0}% reduction) in {:?}",
+                    all_lines.len(), chains.len(), stats.reduction_ratio * 100.0, elapsed);
+                if sketchy_config.is_some() {
+                    eprintln!("Applied sketchy effect");
+                }
             }
 
             let json_lines: Vec<JsonLine> = all_lines.iter().map(|l| JsonLine {
@@ -377,9 +387,11 @@ pub fn cmd_fill(args: &[String]) {
 
             if raw_output {
                 // --raw: output individual <line> elements
-                eprintln!("Generated {} lines in {:?}", all_lines.len(), elapsed);
-                if sketchy_config.is_some() {
-                    eprintln!("Applied sketchy effect");
+                if !quiet {
+                    eprintln!("Generated {} lines in {:?}", all_lines.len(), elapsed);
+                    if sketchy_config.is_some() {
+                        eprintln!("Applied sketchy effect");
+                    }
                 }
                 lines_to_svg(&all_lines, &svg_content)
             } else {
@@ -388,10 +400,12 @@ pub fn cmd_fill(args: &[String]) {
                 let chains = chain_lines(&all_lines, &chain_config);
                 let stats = ChainStats::from_chains(all_lines.len(), &chains);
 
-                eprintln!("Generated {} lines -> {} chains ({:.0}% reduction) in {:?}",
-                    all_lines.len(), chains.len(), stats.reduction_ratio * 100.0, elapsed);
-                if sketchy_config.is_some() {
-                    eprintln!("Applied sketchy effect");
+                if !quiet {
+                    eprintln!("Generated {} lines -> {} chains ({:.0}% reduction) in {:?}",
+                        all_lines.len(), chains.len(), stats.reduction_ratio * 100.0, elapsed);
+                    if sketchy_config.is_some() {
+                        eprintln!("Applied sketchy effect");
+                    }
                 }
 
                 chains_to_svg(&chains, &svg_content)
@@ -406,7 +420,7 @@ pub fn cmd_fill(args: &[String]) {
         }
         Some(path) => {
             fs::write(path, &output).expect("Failed to write output file");
-            eprintln!("Wrote: {}", path);
+            if !quiet { eprintln!("Wrote: {}", path); }
         }
     }
 }
@@ -430,6 +444,7 @@ fn print_usage() {
     eprintln!("  --bowing <n>            Sketchy bowing (default: 1.0)");
     eprintln!("  --no-double-stroke      Disable double-stroke in sketchy mode");
     eprintln!("  --seed <n>              Random seed for sketchy effect");
+    eprintln!("  -q, --quiet             Suppress info messages (for piping)");
     eprintln!();
     eprintln!("Use '-' as input to read from stdin");
 }
