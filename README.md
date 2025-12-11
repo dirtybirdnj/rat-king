@@ -413,6 +413,91 @@ New patterns = minor version bump. Apps using `rat-king = "0.1"` will automatica
 
 ![divider](docs/banners/hr7.png)
 
+## Binary Distribution
+
+rat-king publishes pre-built static binaries via GitHub Releases, enabling zero-dependency distribution.
+
+### The Big Picture
+
+```
+┌─────────────┐         ┌──────────────┐         ┌─────────────┐
+│  rat-king   │ builds  │   GitHub     │ downloads│  your app   │
+│  (Rust src) │ ──────► │   Release    │ ────────►│ (svg-grouper│
+│             │         │  (binaries)  │          │  strata etc)│
+└─────────────┘         └──────────────┘          └─────────────┘
+```
+
+### Distribution Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           RAT-KING REPO                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  1. Make changes, commit, push                                              │
+│                                                                             │
+│  2. Tag a release:  git tag v0.2.0 && git push --tags                       │
+│                                                                             │
+│  3. GitHub Actions triggers on tag:                                         │
+│     - Builds macOS arm64 binary                                             │
+│     - Builds macOS x86_64 binary                                            │
+│     - Builds Linux x86_64 binary (static via musl)                          │
+│     - Creates GitHub Release with binaries attached                         │
+│                                                                             │
+│  4. Release page now has downloadable files:                                │
+│     https://github.com/dirtybirdnj/rat-king/releases/download/v0.2.0/       │
+│       ├── rat-king-macos-aarch64                                            │
+│       ├── rat-king-macos-x86_64                                             │
+│       └── rat-king-linux-x86_64                                             │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    │  download
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           CONSUMER APP                                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Option A: Download script during build                                     │
+│  ─────────────────────────────────────────────────────────────────────────  │
+│    - Detects platform (macos-aarch64, linux-x86_64, etc)                    │
+│    - Downloads correct binary from GitHub releases                          │
+│    - Puts it in bin/rat-king                                                │
+│                                                                             │
+│  Option B: Manual download                                                  │
+│  ─────────────────────────────────────────────────────────────────────────  │
+│    curl -L https://github.com/.../rat-king-macos-aarch64 -o bin/rat-king    │
+│    chmod +x bin/rat-king                                                    │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Available Binaries
+
+| Platform | Binary Name | Notes |
+|----------|-------------|-------|
+| macOS Apple Silicon | `rat-king-macos-aarch64` | M1/M2/M3 Macs |
+| macOS Intel | `rat-king-macos-x86_64` | Older Intel Macs |
+| Linux x86_64 | `rat-king-linux-x86_64` | Static binary (musl), works on any distro |
+
+### Download Latest Release
+
+```bash
+# macOS Apple Silicon
+curl -L https://github.com/dirtybirdnj/rat-king/releases/latest/download/rat-king-macos-aarch64 -o rat-king
+chmod +x rat-king
+
+# macOS Intel
+curl -L https://github.com/dirtybirdnj/rat-king/releases/latest/download/rat-king-macos-x86_64 -o rat-king
+chmod +x rat-king
+
+# Linux
+curl -L https://github.com/dirtybirdnj/rat-king/releases/latest/download/rat-king-linux-x86_64 -o rat-king
+chmod +x rat-king
+```
+
+![divider](docs/banners/hr8.png)
+
 ## Integration Examples
 
 ### Python (subprocess)

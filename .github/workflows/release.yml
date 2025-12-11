@@ -1,0 +1,95 @@
+# Build and release static binaries for rat-king
+# Triggers on version tags (v*)
+# Builds for: macOS (arm64, x86_64), Linux (x86_64 static via musl)
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          # macOS Apple Silicon
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: rat-king
+            asset_name: rat-king-macos-aarch64
+
+          # macOS Intel
+          - os: macos-13
+            target: x86_64-apple-darwin
+            artifact_name: rat-king
+            asset_name: rat-king-macos-x86_64
+
+          # Linux x86_64 (static via musl)
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            artifact_name: rat-king
+            asset_name: rat-king-linux-x86_64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install musl tools (Linux only)
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Build release binary
+        working-directory: crates
+        run: cargo build --release --target ${{ matrix.target }} --package rat-king-cli
+
+      - name: Strip binary (reduce size)
+        run: |
+          strip crates/target/${{ matrix.target }}/release/${{ matrix.artifact_name }} || true
+
+      - name: Rename binary
+        run: |
+          mv crates/target/${{ matrix.target }}/release/${{ matrix.artifact_name }} ${{ matrix.asset_name }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: ${{ matrix.asset_name }}
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List artifacts
+        run: find artifacts -type f
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/rat-king-macos-aarch64/rat-king-macos-aarch64
+            artifacts/rat-king-macos-x86_64/rat-king-macos-x86_64
+            artifacts/rat-king-linux-x86_64/rat-king-linux-x86_64
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
