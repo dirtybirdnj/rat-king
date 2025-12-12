@@ -7,7 +7,16 @@ use quick_xml::events::Event;
 use quick_xml::reader::Reader;
 use std::collections::HashMap;
 
-use super::types::{ColorInfo, ElementCounts, GroupInfo, SvgSummary, ViewBox};
+use super::types::{ColorInfo, ElementCounts, GroupElementCounts, GroupInfo, SvgSummary, ViewBox};
+
+/// Intermediate group info during parsing (before colors are finalized).
+struct GroupInfoBuilder {
+    id: Option<String>,
+    child_count: usize,
+    has_transform: bool,
+    element_counts: GroupElementCounts,
+    colors: HashMap<String, usize>,
+}
 
 /// Streaming analyzer for SVG files.
 ///
@@ -15,7 +24,7 @@ use super::types::{ColorInfo, ElementCounts, GroupInfo, SvgSummary, ViewBox};
 /// enabling analysis of very large files with minimal memory usage.
 pub struct StreamingAnalyzer {
     element_counts: ElementCounts,
-    top_groups: Vec<GroupInfo>,
+    top_groups: Vec<GroupInfoBuilder>,
     fill_colors: HashMap<String, usize>,
     stroke_colors: HashMap<String, usize>,
     view_box: Option<ViewBox>,
@@ -26,6 +35,10 @@ pub struct StreamingAnalyzer {
     current_group_child_count: usize,
     in_defs: bool,
     warnings: Vec<String>,
+    /// Index of the current top-level group we're inside, if any
+    current_top_group_idx: Option<usize>,
+    /// Depth at which the current top-level group started
+    top_group_start_depth: usize,
 }
 
 impl StreamingAnalyzer {
@@ -43,6 +56,8 @@ impl StreamingAnalyzer {
             current_group_child_count: 0,
             in_defs: false,
             warnings: Vec::new(),
+            current_top_group_idx: None,
+            top_group_start_depth: 0,
         }
     }
 
@@ -96,43 +111,73 @@ impl StreamingAnalyzer {
 
         match name {
             "svg" => self.process_svg_attrs(e)?,
-            "g" => self.process_group(e)?,
+            "g" => self.process_group(e, is_empty)?,
             "path" => {
                 self.element_counts.paths += 1;
+                if let Some(idx) = self.current_top_group_idx {
+                    self.top_groups[idx].element_counts.paths += 1;
+                }
                 self.extract_colors(e)?;
             }
             "circle" => {
                 self.element_counts.circles += 1;
+                if let Some(idx) = self.current_top_group_idx {
+                    self.top_groups[idx].element_counts.circles += 1;
+                }
                 self.extract_colors(e)?;
             }
             "rect" => {
                 self.element_counts.rects += 1;
+                if let Some(idx) = self.current_top_group_idx {
+                    self.top_groups[idx].element_counts.rects += 1;
+                }
                 self.extract_colors(e)?;
             }
             "ellipse" => {
                 self.element_counts.ellipses += 1;
+                if let Some(idx) = self.current_top_group_idx {
+                    self.top_groups[idx].element_counts.ellipses += 1;
+                }
                 self.extract_colors(e)?;
             }
             "line" => {
                 self.element_counts.lines += 1;
+                if let Some(idx) = self.current_top_group_idx {
+                    self.top_groups[idx].element_counts.lines += 1;
+                }
                 self.extract_colors(e)?;
             }
             "polyline" => {
                 self.element_counts.polylines += 1;
+                if let Some(idx) = self.current_top_group_idx {
+                    self.top_groups[idx].element_counts.polylines += 1;
+                }
                 self.extract_colors(e)?;
             }
             "polygon" => {
                 self.element_counts.polygons += 1;
+                if let Some(idx) = self.current_top_group_idx {
+                    self.top_groups[idx].element_counts.polygons += 1;
+                }
                 self.extract_colors(e)?;
             }
             "text" | "tspan" => {
                 self.element_counts.text += 1;
+                if let Some(idx) = self.current_top_group_idx {
+                    self.top_groups[idx].element_counts.text += 1;
+                }
             }
             "image" => {
                 self.element_counts.images += 1;
+                if let Some(idx) = self.current_top_group_idx {
+                    self.top_groups[idx].element_counts.images += 1;
+                }
             }
             "use" => {
                 self.element_counts.use_elements += 1;
+                if let Some(idx) = self.current_top_group_idx {
+                    self.top_groups[idx].element_counts.use_elements += 1;
+                }
             }
             "defs" => {
                 self.element_counts.defs += 1;
@@ -171,6 +216,11 @@ impl StreamingAnalyzer {
             self.in_defs = false;
         }
 
+        // Check if we're exiting the current top-level group
+        if name == "g" && self.current_top_group_idx.is_some() && self.depth == self.top_group_start_depth {
+            self.current_top_group_idx = None;
+        }
+
         self.depth = self.depth.saturating_sub(1);
     }
 
@@ -204,8 +254,16 @@ impl StreamingAnalyzer {
         Ok(())
     }
 
-    fn process_group(&mut self, e: &quick_xml::events::BytesStart) -> Result<(), String> {
+    fn process_group(&mut self, e: &quick_xml::events::BytesStart, is_empty: bool) -> Result<(), String> {
         self.element_counts.groups += 1;
+
+        // Track nested groups inside the current top-level group
+        if let Some(idx) = self.current_top_group_idx {
+            // Don't count the top-level group itself, only nested groups
+            if self.depth > self.top_group_start_depth {
+                self.top_groups[idx].element_counts.groups += 1;
+            }
+        }
 
         // Track top-level groups (depth == 2: svg > g)
         if self.depth == 2 && !self.in_defs {
@@ -225,11 +283,20 @@ impl StreamingAnalyzer {
                 }
             }
 
-            self.top_groups.push(GroupInfo {
+            let group_idx = self.top_groups.len();
+            self.top_groups.push(GroupInfoBuilder {
                 id,
                 child_count: 0, // Will be updated later or left as estimate
                 has_transform,
+                element_counts: GroupElementCounts::default(),
+                colors: HashMap::new(),
             });
+
+            // Set current top group if this isn't an empty element
+            if !is_empty {
+                self.current_top_group_idx = Some(group_idx);
+                self.top_group_start_depth = self.depth;
+            }
         }
 
         Ok(())
@@ -249,13 +316,15 @@ impl StreamingAnalyzer {
                 "fill" => {
                     if !value.is_empty() && value != "none" {
                         let normalized = normalize_color(value);
-                        *self.fill_colors.entry(normalized).or_insert(0) += 1;
+                        *self.fill_colors.entry(normalized.clone()).or_insert(0) += 1;
+                        self.track_group_color(&normalized);
                     }
                 }
                 "stroke" => {
                     if !value.is_empty() && value != "none" {
                         let normalized = normalize_color(value);
-                        *self.stroke_colors.entry(normalized).or_insert(0) += 1;
+                        *self.stroke_colors.entry(normalized.clone()).or_insert(0) += 1;
+                        self.track_group_color(&normalized);
                     }
                 }
                 "style" => {
@@ -269,6 +338,13 @@ impl StreamingAnalyzer {
         Ok(())
     }
 
+    /// Track a color for the current top-level group.
+    fn track_group_color(&mut self, color: &str) {
+        if let Some(idx) = self.current_top_group_idx {
+            *self.top_groups[idx].colors.entry(color.to_string()).or_insert(0) += 1;
+        }
+    }
+
     fn parse_style_attr(&mut self, style: &str) {
         // Simple CSS parsing for fill: and stroke: properties
         for part in style.split(';') {
@@ -277,13 +353,15 @@ impl StreamingAnalyzer {
                 let value = value.trim();
                 if !value.is_empty() && value != "none" {
                     let normalized = normalize_color(value);
-                    *self.fill_colors.entry(normalized).or_insert(0) += 1;
+                    *self.fill_colors.entry(normalized.clone()).or_insert(0) += 1;
+                    self.track_group_color(&normalized);
                 }
             } else if let Some(value) = part.strip_prefix("stroke:") {
                 let value = value.trim();
                 if !value.is_empty() && value != "none" {
                     let normalized = normalize_color(value);
-                    *self.stroke_colors.entry(normalized).or_insert(0) += 1;
+                    *self.stroke_colors.entry(normalized.clone()).or_insert(0) += 1;
+                    self.track_group_color(&normalized);
                 }
             }
         }
@@ -296,9 +374,19 @@ impl StreamingAnalyzer {
         summary.width = self.width.clone();
         summary.height = self.height.clone();
         summary.element_counts = self.element_counts.clone();
-        summary.top_level_groups = self.top_groups.clone();
         summary.transform_count = self.transform_count;
         summary.warnings = self.warnings.clone();
+
+        // Convert GroupInfoBuilder to GroupInfo with sorted colors
+        summary.top_level_groups = self.top_groups.iter().map(|g| {
+            GroupInfo {
+                id: g.id.clone(),
+                child_count: g.child_count,
+                has_transform: g.has_transform,
+                element_counts: g.element_counts.clone(),
+                colors: colors_to_sorted_vec(&g.colors),
+            }
+        }).collect();
 
         // Convert color maps to sorted vectors
         summary.fill_colors = colors_to_sorted_vec(&self.fill_colors);
@@ -407,5 +495,53 @@ mod tests {
         assert_eq!(summary.top_level_groups.len(), 1);
         assert_eq!(summary.top_level_groups[0].id, Some("Layer1".to_string()));
         assert_eq!(summary.fill_colors.len(), 2);
+
+        // Test per-group element counts
+        let layer1 = &summary.top_level_groups[0];
+        assert_eq!(layer1.element_counts.paths, 1);
+        assert_eq!(layer1.element_counts.rects, 1);
+        assert_eq!(layer1.element_counts.groups, 0); // No nested groups
+
+        // Test per-group colors
+        assert_eq!(layer1.colors.len(), 2);
+        // Colors should be sorted by count (both have count 1, so alphabetical)
+    }
+
+    #[test]
+    fn test_multiple_layers() {
+        let svg = concat!(
+            "<svg viewBox=\"0 0 100 100\">",
+            "<g id=\"contours\">",
+            "<path fill=\"#8B4513\" d=\"M0,0\"/>",
+            "<path fill=\"#8B4513\" d=\"M10,10\"/>",
+            "<path fill=\"#8B4513\" d=\"M20,20\"/>",
+            "</g>",
+            "<g id=\"fills\">",
+            "<rect fill=\"blue\" x=\"0\" y=\"0\" width=\"10\" height=\"10\"/>",
+            "<rect fill=\"red\" x=\"10\" y=\"10\" width=\"10\" height=\"10\"/>",
+            "</g>",
+            "</svg>"
+        );
+
+        let mut analyzer = StreamingAnalyzer::new();
+        let summary = analyzer.analyze(svg, svg.len() as u64).unwrap();
+
+        assert_eq!(summary.top_level_groups.len(), 2);
+
+        // Test contours layer
+        let contours = &summary.top_level_groups[0];
+        assert_eq!(contours.id, Some("contours".to_string()));
+        assert_eq!(contours.element_counts.paths, 3);
+        assert_eq!(contours.element_counts.rects, 0);
+        assert_eq!(contours.colors.len(), 1);
+        assert_eq!(contours.colors[0].color, "#8b4513");
+        assert_eq!(contours.colors[0].count, 3);
+
+        // Test fills layer
+        let fills = &summary.top_level_groups[1];
+        assert_eq!(fills.id, Some("fills".to_string()));
+        assert_eq!(fills.element_counts.paths, 0);
+        assert_eq!(fills.element_counts.rects, 2);
+        assert_eq!(fills.colors.len(), 2);
     }
 }

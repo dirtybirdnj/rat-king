@@ -96,6 +96,26 @@ pub struct GroupInfo {
     pub child_count: usize,
     /// Whether this group has a transform
     pub has_transform: bool,
+    /// Element counts within this group
+    pub element_counts: GroupElementCounts,
+    /// Colors used in this group (fill and stroke combined), sorted by count
+    pub colors: Vec<ColorInfo>,
+}
+
+/// Element counts for a group (subset of full ElementCounts).
+#[derive(Debug, Serialize, Clone, Default)]
+pub struct GroupElementCounts {
+    pub paths: usize,
+    pub groups: usize,
+    pub rects: usize,
+    pub circles: usize,
+    pub ellipses: usize,
+    pub lines: usize,
+    pub polylines: usize,
+    pub polygons: usize,
+    pub text: usize,
+    pub images: usize,
+    pub use_elements: usize,
 }
 
 /// Color usage information.

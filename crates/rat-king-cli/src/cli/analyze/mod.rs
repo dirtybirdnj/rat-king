@@ -353,7 +353,63 @@ fn print_human_readable(result: &AnalyzeResult) {
     for g in &s.top_level_groups {
         let id = g.id.as_ref().map(|s| s.as_str()).unwrap_or("<anonymous>");
         let transform_marker = if g.has_transform { " [T]" } else { "" };
-        println!("    - {}{} ({} children)", id, transform_marker, g.child_count);
+
+        // Build element counts summary
+        let mut counts = Vec::new();
+        if g.element_counts.paths > 0 {
+            counts.push(format!("{} paths", g.element_counts.paths));
+        }
+        if g.element_counts.rects > 0 {
+            counts.push(format!("{} rects", g.element_counts.rects));
+        }
+        if g.element_counts.circles > 0 {
+            counts.push(format!("{} circles", g.element_counts.circles));
+        }
+        if g.element_counts.ellipses > 0 {
+            counts.push(format!("{} ellipses", g.element_counts.ellipses));
+        }
+        if g.element_counts.lines > 0 {
+            counts.push(format!("{} lines", g.element_counts.lines));
+        }
+        if g.element_counts.polylines > 0 {
+            counts.push(format!("{} polylines", g.element_counts.polylines));
+        }
+        if g.element_counts.polygons > 0 {
+            counts.push(format!("{} polygons", g.element_counts.polygons));
+        }
+        if g.element_counts.groups > 0 {
+            counts.push(format!("{} groups", g.element_counts.groups));
+        }
+        if g.element_counts.text > 0 {
+            counts.push(format!("{} text", g.element_counts.text));
+        }
+        if g.element_counts.images > 0 {
+            counts.push(format!("{} images", g.element_counts.images));
+        }
+        if g.element_counts.use_elements > 0 {
+            counts.push(format!("{} use", g.element_counts.use_elements));
+        }
+
+        let counts_str = if counts.is_empty() {
+            "empty".to_string()
+        } else {
+            counts.join(", ")
+        };
+
+        println!("    - {}{}: {}", id, transform_marker, counts_str);
+
+        // Show colors used in this group (up to 4)
+        if !g.colors.is_empty() {
+            let colors_preview: Vec<String> = g.colors.iter().take(4)
+                .map(|c| format!("{} ({}x)", c.color, c.count))
+                .collect();
+            let suffix = if g.colors.len() > 4 {
+                format!(", +{} more", g.colors.len() - 4)
+            } else {
+                String::new()
+            };
+            println!("      colors: {}{}", colors_preview.join(", "), suffix);
+        }
     }
 
     if !s.fill_colors.is_empty() {
