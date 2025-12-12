@@ -31,6 +31,11 @@ mod herringbone;
 mod stripe;
 mod tessellation;
 mod harmonograph;
+mod flowfield;
+mod voronoi;
+mod gosper;
+mod wave;
+mod sunburst;
 
 pub use zigzag::generate_zigzag_fill;
 pub use wiggle::generate_wiggle_fill;
@@ -65,6 +70,11 @@ pub use tessellation::{
     triangulate,
 };
 pub use harmonograph::generate_harmonograph_fill;
+pub use flowfield::generate_flowfield_fill;
+pub use voronoi::generate_voronoi_fill;
+pub use gosper::generate_gosper_fill;
+pub use wave::generate_wave_fill;
+pub use sunburst::generate_sunburst_fill;
 
 // Re-export from hatch module (already implemented)
 pub use crate::hatch::{generate_lines_fill, generate_crosshatch_fill};
@@ -120,6 +130,11 @@ pub enum Pattern {
     Stripe,
     Tessellation,
     Harmonograph,
+    Flowfield,
+    Voronoi,
+    Gosper,
+    Wave,
+    Sunburst,
 }
 
 impl Pattern {
@@ -156,6 +171,11 @@ impl Pattern {
             Pattern::Stripe,
             Pattern::Tessellation,
             Pattern::Harmonograph,
+            Pattern::Flowfield,
+            Pattern::Voronoi,
+            Pattern::Gosper,
+            Pattern::Wave,
+            Pattern::Sunburst,
         ]
     }
 
@@ -192,6 +212,11 @@ impl Pattern {
             Pattern::Stripe => "stripe",
             Pattern::Tessellation => "tessellation",
             Pattern::Harmonograph => "harmonograph",
+            Pattern::Flowfield => "flowfield",
+            Pattern::Voronoi => "voronoi",
+            Pattern::Gosper => "gosper",
+            Pattern::Wave => "wave",
+            Pattern::Sunburst => "sunburst",
         }
     }
 
@@ -262,6 +287,16 @@ impl Pattern {
                 PatternMetadata::new("N/A", "N/A", "Triangulate polygon"),
             Pattern::Harmonograph =>
                 PatternMetadata::new("Curve Count", "Phase", "Decaying pendulum curves"),
+            Pattern::Flowfield =>
+                PatternMetadata::new("Density", "Base Angle", "Perlin noise flow lines"),
+            Pattern::Voronoi =>
+                PatternMetadata::new("Cell Size", "Rotation", "Voronoi cell boundaries"),
+            Pattern::Gosper =>
+                PatternMetadata::new("Detail", "Rotation", "Gosper space-filling curve"),
+            Pattern::Wave =>
+                PatternMetadata::new("Wavelength", "Source Angle", "Wave interference pattern"),
+            Pattern::Sunburst =>
+                PatternMetadata::new("Ray Spacing", "Rotation", "Radial rays from center"),
         }
     }
 
@@ -272,7 +307,8 @@ impl Pattern {
         match self {
             Pattern::Zigzag | Pattern::Wiggle | Pattern::Spiral | Pattern::Fermat
             | Pattern::Honeycomb | Pattern::Crossspiral | Pattern::Grid
-            | Pattern::Brick | Pattern::Truchet | Pattern::Herringbone | Pattern::Stripe => 2.0,
+            | Pattern::Brick | Pattern::Truchet | Pattern::Herringbone | Pattern::Stripe
+            | Pattern::Voronoi | Pattern::Wave | Pattern::Sunburst => 2.0,
             _ => 1.0,
         }
     }
@@ -316,6 +352,11 @@ impl Pattern {
             Pattern::Stripe => generate_stripe_fill(polygon, effective_spacing, angle),
             Pattern::Tessellation => generate_tessellation_fill(polygon, spacing, angle),
             Pattern::Harmonograph => generate_harmonograph_fill(polygon, spacing, angle),
+            Pattern::Flowfield => generate_flowfield_fill(polygon, spacing, angle),
+            Pattern::Voronoi => generate_voronoi_fill(polygon, effective_spacing, angle),
+            Pattern::Gosper => generate_gosper_fill(polygon, spacing, angle),
+            Pattern::Wave => generate_wave_fill(polygon, effective_spacing, angle),
+            Pattern::Sunburst => generate_sunburst_fill(polygon, effective_spacing, angle),
         }
     }
 
@@ -325,7 +366,7 @@ impl Pattern {
             "lines" => Some(Pattern::Lines),
             "crosshatch" => Some(Pattern::Crosshatch),
             "zigzag" => Some(Pattern::Zigzag),
-            "wiggle" | "wave" => Some(Pattern::Wiggle),
+            "wiggle" | "sine" => Some(Pattern::Wiggle),
             "spiral" => Some(Pattern::Spiral),
             "fermat" => Some(Pattern::Fermat),
             "concentric" => Some(Pattern::Concentric),
@@ -352,6 +393,11 @@ impl Pattern {
             "stripe" | "stripes" | "bands" => Some(Pattern::Stripe),
             "tessellation" | "triangulate" | "triangles" => Some(Pattern::Tessellation),
             "harmonograph" | "pendulum" => Some(Pattern::Harmonograph),
+            "flowfield" | "flow" | "noise" => Some(Pattern::Flowfield),
+            "voronoi" | "cells" => Some(Pattern::Voronoi),
+            "gosper" | "flowsnake" => Some(Pattern::Gosper),
+            "wave" | "interference" => Some(Pattern::Wave),
+            "sunburst" | "rays" | "starburst" => Some(Pattern::Sunburst),
             _ => None,
         }
     }

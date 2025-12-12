@@ -55,6 +55,7 @@ mod tree;
 mod types;
 
 use std::fs;
+use std::io::{self, Read};
 
 use types::{AnalyzeResult, QueryResult};
 
@@ -120,6 +121,12 @@ pub fn cmd_analyze(args: &[String]) {
                 print_usage();
                 return;
             }
+            "-" => {
+                // Special case: '-' means stdin
+                if svg_path.is_none() {
+                    svg_path = Some("-");
+                }
+            }
             path if !path.starts_with('-') => {
                 if svg_path.is_none() {
                     svg_path = Some(path);
@@ -135,26 +142,38 @@ pub fn cmd_analyze(args: &[String]) {
     let svg_path = match svg_path {
         Some(p) => p,
         None => {
-            eprintln!("Error: SVG file required");
+            eprintln!("Error: SVG file required (use '-' for stdin)");
             eprintln!();
             print_usage();
             std::process::exit(1);
         }
     };
 
-    // Get file size
-    let file_size = fs::metadata(svg_path)
-        .map(|m| m.len())
-        .unwrap_or_else(|e| {
-            eprintln!("Error: Cannot read file '{}': {}", svg_path, e);
+    // Read content and get file size
+    let (content, file_size) = if svg_path == "-" {
+        // Read from stdin
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer).unwrap_or_else(|e| {
+            eprintln!("Error: Failed to read from stdin: {}", e);
             std::process::exit(1);
         });
+        let size = buffer.len() as u64;
+        (buffer, size)
+    } else {
+        // Read from file
+        let file_size = fs::metadata(svg_path)
+            .map(|m| m.len())
+            .unwrap_or_else(|e| {
+                eprintln!("Error: Cannot read file '{}': {}", svg_path, e);
+                std::process::exit(1);
+            });
 
-    // Read content
-    let content = fs::read_to_string(svg_path).unwrap_or_else(|e| {
-        eprintln!("Error: Failed to read '{}': {}", svg_path, e);
-        std::process::exit(1);
-    });
+        let content = fs::read_to_string(svg_path).unwrap_or_else(|e| {
+            eprintln!("Error: Failed to read '{}': {}", svg_path, e);
+            std::process::exit(1);
+        });
+        (content, file_size)
+    };
 
     // Pass 1: Streaming analysis (always)
     let mut analyzer = streaming::StreamingAnalyzer::new();
@@ -494,6 +513,7 @@ pub fn print_usage() {
     eprintln!();
     eprintln!("USAGE:");
     eprintln!("    rat-king analyze <input.svg> [OPTIONS]");
+    eprintln!("    cat input.svg | rat-king analyze - [OPTIONS]");
     eprintln!();
     eprintln!("DESCRIPTION:");
     eprintln!("    Analyze SVG files and output structured summaries. Designed to help");
@@ -537,6 +557,10 @@ pub fn print_usage() {
     eprintln!();
     eprintln!("    # Find elements in top-left quadrant");
     eprintln!("    rat-king analyze map.svg --region \"0,0,500,500\"");
+    eprintln!();
+    eprintln!("    # Read SVG from stdin (useful for piped data)");
+    eprintln!("    cat drawing.svg | rat-king analyze - --json");
+    eprintln!("    echo '<svg>...</svg>' | rat-king analyze -");
     eprintln!();
     eprintln!("OUTPUT SUMMARY:");
     eprintln!("    The default summary includes:");
