@@ -25,8 +25,8 @@ jobs:
             artifact_name: rat-king
             asset_name: rat-king-macos-aarch64
 
-          # macOS Intel
-          - os: macos-13
+          # macOS Intel (cross-compile from arm64)
+          - os: macos-latest
             target: x86_64-apple-darwin
             artifact_name: rat-king
             asset_name: rat-king-macos-x86_64
