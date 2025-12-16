@@ -8,6 +8,7 @@
 //! - `analyze` - Analyze SVG structure for AI agents
 //! - `swatches` - Generate pattern swatch sheets
 //! - `banner` - Generate randomized pattern banners
+//! - `showcase` - Generate pattern detail progression pages
 
 pub mod common;
 pub mod fill;
@@ -16,6 +17,8 @@ pub mod harness;
 pub mod analyze;
 pub mod swatches;
 pub mod banner;
+pub mod hershey;
+pub mod showcase;
 
 pub use common::generate_pattern;
 pub use fill::cmd_fill;
@@ -27,3 +30,4 @@ pub use harness::{
 pub use analyze::cmd_analyze;
 pub use swatches::cmd_swatches;
 pub use banner::cmd_banner;
+pub use showcase::cmd_showcase;

@@ -35,7 +35,7 @@ use rat_king::{extract_polygons_from_svg, Line, Pattern, Polygon};
 
 // Import CLI commands
 use cli::{
-    cmd_fill, cmd_benchmark, cmd_analyze, cmd_swatches, cmd_banner, generate_pattern,
+    cmd_fill, cmd_benchmark, cmd_analyze, cmd_swatches, cmd_banner, cmd_showcase, generate_pattern,
     AnalysisResult, HarnessResult, VisualHarnessReport,
     analyze_pattern_vs_solid, generate_diff_image,
 };
@@ -956,6 +956,10 @@ fn main() {
                 cmd_banner(&args[2..]);
                 return;
             }
+            "showcase" => {
+                cmd_showcase(&args[2..]);
+                return;
+            }
             "help" | "--help" | "-h" => {
                 print_usage(&args[0]);
                 return;
@@ -1351,6 +1355,7 @@ fn print_usage(prog: &str) {
     eprintln!("  {} harness [svg] [-p pattern1,pattern2,...]", prog);
     eprintln!("  {} analyze <svg> [--json] [query options]", prog);
     eprintln!("  {} swatches [-o output.svg] [options]", prog);
+    eprintln!("  {} showcase [-o dir] [-p pattern] [options]", prog);
     eprintln!("  {} patterns", prog);
     eprintln!();
     eprintln!("Fill options:");
@@ -1396,6 +1401,13 @@ fn print_usage(prog: &str) {
     eprintln!("  -s, --spacing <n>       Pattern spacing (default: 4.0)");
     eprintln!("  --png <file>            Also generate PNG output");
     eprintln!("  --png-scale <n>         PNG scale factor (default: 2.0)");
+    eprintln!();
+    eprintln!("Showcase options:");
+    eprintln!("  -o, --output <dir>      Output directory (default: current)");
+    eprintln!("  -p, --pattern <name>    Generate only this pattern");
+    eprintln!("  -c, --combined          All patterns per density level");
+    eprintln!("  --png                   Also generate PNG output");
+    eprintln!("  --system-font           Use system fonts (default: Hershey single-line)");
     eprintln!();
     eprintln!("Stdin support:");
     eprintln!("  Use '-' as input file to read SVG from stdin:");
