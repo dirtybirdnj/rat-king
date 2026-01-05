@@ -75,6 +75,53 @@ pub fn chains_to_svg(chains: &[Chain], original_svg: &str) -> String {
     svg
 }
 
+/// A group of chains with styling information.
+pub struct StyledGroup {
+    pub group_id: String,
+    pub chains: Vec<Chain>,
+    pub color: String,
+}
+
+/// Convert grouped chains to SVG output with per-group colors.
+pub fn grouped_chains_to_svg(groups: &[StyledGroup], original_svg: &str) -> String {
+    let viewbox = extract_viewbox(original_svg).unwrap_or_else(|| "0 0 1000 1000".to_string());
+
+    let mut svg = String::new();
+    svg.push_str(&format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="{}">
+"#,
+        viewbox
+    ));
+
+    for group in groups {
+        svg.push_str(&format!(
+            r#"<g id="{}" stroke="{}" stroke-width="0.5" fill="none" stroke-linecap="round">
+"#,
+            group.group_id, group.color
+        ));
+
+        for chain in &group.chains {
+            if chain.len() < 2 {
+                continue;
+            }
+
+            let points: String = chain
+                .iter()
+                .map(|p| format!("{:.2},{:.2}", p.x, p.y))
+                .collect::<Vec<_>>()
+                .join(" ");
+
+            svg.push_str(&format!("  <polyline points=\"{}\"/>\n", points));
+        }
+
+        svg.push_str("</g>\n");
+    }
+
+    svg.push_str("</svg>\n");
+    svg
+}
+
 /// Extract viewBox from SVG content.
 pub fn extract_viewbox(svg: &str) -> Option<String> {
     // Try viewBox (camelCase)

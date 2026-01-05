@@ -65,7 +65,8 @@ pub fn extract_polygons_from_svg(svg_content: &str) -> Result<Vec<Polygon>, SvgE
     let mut polygons = Vec::new();
 
     // Walk the tree and collect paths (root is a Group in usvg 0.45)
-    extract_from_group(tree.root(), &mut polygons);
+    // Pass None as parent_group_id for the root
+    extract_from_group(tree.root(), &mut polygons, None);
 
     if polygons.is_empty() {
         Err(SvgError::NoPolygons)
@@ -75,14 +76,22 @@ pub fn extract_polygons_from_svg(svg_content: &str) -> Result<Vec<Polygon>, SvgE
 }
 
 /// Recursively extract polygons from a usvg Group.
-fn extract_from_group(group: &usvg::Group, polygons: &mut Vec<Polygon>) {
+/// Tracks the nearest parent group ID for per-group styling support.
+fn extract_from_group(group: &usvg::Group, polygons: &mut Vec<Polygon>, parent_group_id: Option<&str>) {
+    // Use this group's ID if it has one, otherwise inherit from parent
+    let current_group_id = if group.id().is_empty() {
+        parent_group_id
+    } else {
+        Some(group.id())
+    };
+
     for child in group.children() {
-        extract_from_node(child, polygons);
+        extract_from_node(child, polygons, current_group_id);
     }
 }
 
 /// Recursively extract polygons from a usvg node.
-fn extract_from_node(node: &usvg::Node, polygons: &mut Vec<Polygon>) {
+fn extract_from_node(node: &usvg::Node, polygons: &mut Vec<Polygon>, parent_group_id: Option<&str>) {
     // ## Rust Lesson #22: Pattern Matching on Enums with Data
     //
     // usvg::Node is an enum with variants that carry different data.
@@ -90,12 +99,13 @@ fn extract_from_node(node: &usvg::Node, polygons: &mut Vec<Polygon>) {
 
     match node {
         usvg::Node::Group(group) => {
-            // Recurse into groups
-            extract_from_group(group, polygons);
+            // Recurse into groups, passing current group ID
+            extract_from_group(group, polygons, parent_group_id);
         }
         usvg::Node::Path(path) => {
             // Extract all polygons from path data (handles compound paths)
-            polygons.extend(path_to_polygons(path));
+            let group_id = parent_group_id.map(|s| s.to_string());
+            polygons.extend(path_to_polygons(path, group_id));
         }
         // Ignore text, images, etc.
         _ => {}
@@ -115,7 +125,7 @@ const CURVE_TOLERANCE: f32 = 0.1;
 ///
 /// Properly flattens Bézier curves using lyon_geom for accurate polygon boundaries.
 /// Applies the path's absolute transform (including all parent group transforms).
-fn path_to_polygons(path: &usvg::Path) -> Vec<Polygon> {
+fn path_to_polygons(path: &usvg::Path, group_id: Option<String>) -> Vec<Polygon> {
     let data = path.data();
     let id = path.id();
     let transform = path.abs_transform();
@@ -137,8 +147,11 @@ fn path_to_polygons(path: &usvg::Path) -> Vec<Polygon> {
         Point::new(pt.x as f64, pt.y as f64)
     };
 
+    // Clone group_id for use in closure
+    let group_id_for_closure = group_id.clone();
+
     // Helper to finalize current subpath as a polygon
-    let finalize_subpath = |points: &mut Vec<Point>, subpath_idx: usize| {
+    let finalize_subpath = |points: &mut Vec<Point>, subpath_idx: usize, grp_id: &Option<String>| {
         // Remove duplicate consecutive points that can occur from curve flattening
         if points.len() >= 2 {
             points.dedup_by(|a, b| {
@@ -157,7 +170,7 @@ fn path_to_polygons(path: &usvg::Path) -> Vec<Polygon> {
             } else {
                 Some(format!("{}_{}", id, subpath_idx))
             };
-            let polygon = Polygon::with_id(std::mem::take(points), polygon_id);
+            let polygon = Polygon::with_id_and_group(std::mem::take(points), polygon_id, grp_id.clone());
             return Some(polygon);
         }
         points.clear();
@@ -169,7 +182,7 @@ fn path_to_polygons(path: &usvg::Path) -> Vec<Polygon> {
             usvg::tiny_skia_path::PathSegment::MoveTo(p) => {
                 // Start of new subpath - finalize previous if any
                 if !points.is_empty() {
-                    if let Some(polygon) = finalize_subpath(&mut points, subpath_index) {
+                    if let Some(polygon) = finalize_subpath(&mut points, subpath_index, &group_id_for_closure) {
                         polygons.push(polygon);
                     }
                     subpath_index += 1;
@@ -224,7 +237,7 @@ fn path_to_polygons(path: &usvg::Path) -> Vec<Polygon> {
             }
             usvg::tiny_skia_path::PathSegment::Close => {
                 // Path is closed - finalize this subpath
-                if let Some(polygon) = finalize_subpath(&mut points, subpath_index) {
+                if let Some(polygon) = finalize_subpath(&mut points, subpath_index, &group_id_for_closure) {
                     polygons.push(polygon);
                 }
                 subpath_index += 1;
@@ -234,7 +247,7 @@ fn path_to_polygons(path: &usvg::Path) -> Vec<Polygon> {
 
     // Finalize any remaining points (unclosed path)
     if !points.is_empty() {
-        if let Some(polygon) = finalize_subpath(&mut points, subpath_index) {
+        if let Some(polygon) = finalize_subpath(&mut points, subpath_index, &group_id_for_closure) {
             polygons.push(polygon);
         }
     }
@@ -343,6 +356,7 @@ fn assemble_holes(polygons: Vec<Polygon>) -> Vec<Polygon> {
                 outer: polygon.outer,
                 holes,
                 id: polygon.id,
+                group_id: polygon.group_id,
             });
         }
     }

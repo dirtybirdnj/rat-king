@@ -47,6 +47,8 @@ pub struct Polygon {
     pub holes: Vec<Vec<Point>>,
     /// Optional ID from the SVG element
     pub id: Option<String>,
+    /// Optional parent group ID from the SVG (for per-group styling)
+    pub group_id: Option<String>,
 }
 
 // ============================================================================
@@ -124,12 +126,13 @@ impl Polygon {
             outer,
             holes: Vec::new(), // Empty vec, like []
             id: None,
+            group_id: None,
         }
     }
 
     /// Create a polygon with holes.
     pub fn with_holes(outer: Vec<Point>, holes: Vec<Vec<Point>>) -> Self {
-        Self { outer, holes, id: None }
+        Self { outer, holes, id: None, group_id: None }
     }
 
     /// Create a polygon with an ID.
@@ -138,6 +141,17 @@ impl Polygon {
             outer,
             holes: Vec::new(),
             id,
+            group_id: None,
+        }
+    }
+
+    /// Create a polygon with ID and group ID.
+    pub fn with_id_and_group(outer: Vec<Point>, id: Option<String>, group_id: Option<String>) -> Self {
+        Self {
+            outer,
+            holes: Vec::new(),
+            id,
+            group_id,
         }
     }
 

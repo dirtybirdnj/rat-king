@@ -1,10 +1,11 @@
 //! Fill command implementation.
 
+use std::collections::HashMap;
 use std::fs;
 use std::io::{self, Read};
 use std::time::Instant;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use rat_king::{
     chain_lines, ChainConfig, ChainStats,
@@ -13,7 +14,7 @@ use rat_king::{
     SketchyConfig, sketchify_lines, polygon_to_lines,
 };
 
-use super::common::{OutputFormat, generate_pattern, lines_to_svg, chains_to_svg};
+use super::common::{OutputFormat, generate_pattern, lines_to_svg, chains_to_svg, grouped_chains_to_svg, StyledGroup};
 
 /// A line in JSON output format.
 #[derive(Serialize)]
@@ -66,6 +67,86 @@ struct JsonOutputGrouped {
     shapes: Vec<JsonShape>,
 }
 
+// ============================================================================
+// Fill Configuration (YAML)
+// ============================================================================
+
+/// Configuration for per-group pattern fills.
+#[derive(Debug, Clone, Deserialize)]
+pub struct FillConfig {
+    /// Default settings applied to all groups
+    #[serde(default)]
+    pub defaults: GroupConfig,
+
+    /// Per-group overrides keyed by SVG group ID
+    #[serde(default)]
+    pub groups: HashMap<String, GroupConfig>,
+}
+
+/// Configuration for a single group (or defaults).
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct GroupConfig {
+    /// Pattern name (e.g., "lines", "crosshatch", "concentric")
+    #[serde(default)]
+    pub pattern: Option<String>,
+
+    /// Line spacing
+    #[serde(default)]
+    pub spacing: Option<f64>,
+
+    /// Pattern angle in degrees
+    #[serde(default)]
+    pub angle: Option<f64>,
+
+    /// Stroke color (e.g., "#FF0000" or "red")
+    #[serde(default)]
+    pub color: Option<String>,
+}
+
+impl FillConfig {
+    /// Load configuration from a YAML file.
+    pub fn load(path: &str) -> Result<Self, String> {
+        let content = fs::read_to_string(path)
+            .map_err(|e| format!("Failed to read config file: {}", e))?;
+        serde_yaml::from_str(&content)
+            .map_err(|e| format!("Failed to parse config YAML: {}", e))
+    }
+
+    /// Get the effective configuration for a group.
+    /// Returns pattern, spacing, angle, color by merging group config with defaults.
+    pub fn get_for_group(&self, group_id: Option<&str>) -> ResolvedConfig {
+        let group_config = group_id.and_then(|id| self.groups.get(id));
+
+        ResolvedConfig {
+            pattern: group_config
+                .and_then(|g| g.pattern.clone())
+                .or_else(|| self.defaults.pattern.clone())
+                .unwrap_or_else(|| "lines".to_string()),
+            spacing: group_config
+                .and_then(|g| g.spacing)
+                .or(self.defaults.spacing)
+                .unwrap_or(2.5),
+            angle: group_config
+                .and_then(|g| g.angle)
+                .or(self.defaults.angle)
+                .unwrap_or(45.0),
+            color: group_config
+                .and_then(|g| g.color.clone())
+                .or_else(|| self.defaults.color.clone())
+                .unwrap_or_else(|| "#000000".to_string()),
+        }
+    }
+}
+
+/// Resolved configuration with all values filled in.
+#[derive(Debug, Clone)]
+pub struct ResolvedConfig {
+    pub pattern: String,
+    pub spacing: f64,
+    pub angle: f64,
+    pub color: String,
+}
+
 /// Execute the fill command.
 pub fn cmd_fill(args: &[String]) {
     let mut svg_path: Option<&str> = None;
@@ -81,6 +162,8 @@ pub fn cmd_fill(args: &[String]) {
     let mut raw_output = false;  // --raw: output individual lines instead of chained polylines
     let mut chain_tolerance = 0.1;  // --chain-tolerance: max distance to consider endpoints connected
     let mut quiet = false;  // --quiet: suppress info messages
+    let mut config_path: Option<&str> = None;  // --config: per-group pattern config
+    let mut color_override: Option<&str> = None;  // --color: simple color override
 
     let mut i = 0;
     while i < args.len() {
@@ -205,6 +288,18 @@ pub fn cmd_fill(args: &[String]) {
             }
             "-q" | "--quiet" => {
                 quiet = true;
+            }
+            "--config" => {
+                i += 1;
+                if i < args.len() {
+                    config_path = Some(&args[i]);
+                }
+            }
+            "--color" => {
+                i += 1;
+                if i < args.len() {
+                    color_override = Some(&args[i]);
+                }
             }
             "-h" | "--help" => {
                 print_usage();
@@ -374,41 +469,106 @@ pub fn cmd_fill(args: &[String]) {
             }).expect("Failed to serialize JSON")
         }
         (OutputFormat::Svg, _) => {
-            let mut all_lines: Vec<Line> = Vec::new();
-            for &idx in &order {
-                let polygon = &polygons[idx];
-                let lines = generate_pattern(pattern, polygon, spacing, angle);
-                let lines = post_process(lines, polygon);
-                all_lines.extend(lines);
-            }
-            let all_lines = apply_sketchy(all_lines);
+            // Load config if provided
+            let fill_config = config_path.map(|path| {
+                FillConfig::load(path).unwrap_or_else(|e| {
+                    eprintln!("Error loading config: {}", e);
+                    std::process::exit(1);
+                })
+            });
 
-            let elapsed = start.elapsed();
+            if let Some(ref config) = fill_config {
+                // Config mode: per-group patterns and colors
+                // Group polygons by their group_id
+                let mut groups_map: HashMap<String, Vec<(usize, ResolvedConfig)>> = HashMap::new();
 
-            if raw_output {
-                // --raw: output individual <line> elements
+                for &idx in &order {
+                    let polygon = &polygons[idx];
+                    let group_id = polygon.group_id.clone().unwrap_or_else(|| "_default".to_string());
+                    let resolved = config.get_for_group(polygon.group_id.as_deref());
+                    groups_map.entry(group_id).or_default().push((idx, resolved));
+                }
+
+                // Generate lines for each group
+                let mut styled_groups: Vec<StyledGroup> = Vec::new();
+                let mut total_lines = 0;
+
+                for (group_id, polygon_configs) in &groups_map {
+                    let mut group_lines: Vec<Line> = Vec::new();
+                    let mut group_color = "#000000".to_string();
+
+                    for (idx, resolved) in polygon_configs {
+                        let polygon = &polygons[*idx];
+                        group_color = resolved.color.clone();
+
+                        // Parse pattern for this group
+                        let group_pattern = Pattern::from_name(&resolved.pattern).unwrap_or(pattern);
+                        let lines = generate_pattern(group_pattern, polygon, resolved.spacing, resolved.angle);
+                        let lines = post_process(lines, polygon);
+                        group_lines.extend(lines);
+                    }
+
+                    let group_lines = apply_sketchy(group_lines);
+                    total_lines += group_lines.len();
+
+                    // Chain lines within this group
+                    let chain_config_inner = ChainConfig::with_tolerance(chain_tolerance);
+                    let chains = chain_lines(&group_lines, &chain_config_inner);
+
+                    styled_groups.push(StyledGroup {
+                        group_id: group_id.clone(),
+                        chains,
+                        color: color_override.map(|s| s.to_string()).unwrap_or(group_color),
+                    });
+                }
+
+                let elapsed = start.elapsed();
                 if !quiet {
-                    eprintln!("Generated {} lines in {:?}", all_lines.len(), elapsed);
+                    eprintln!("Generated {} lines in {} groups in {:?}", total_lines, styled_groups.len(), elapsed);
                     if sketchy_config.is_some() {
                         eprintln!("Applied sketchy effect");
                     }
                 }
-                lines_to_svg(&all_lines, &svg_content)
+
+                grouped_chains_to_svg(&styled_groups, &svg_content)
             } else {
-                // Default: chain lines into polylines for smaller output
-                let chain_config = ChainConfig::with_tolerance(chain_tolerance);
-                let chains = chain_lines(&all_lines, &chain_config);
-                let stats = ChainStats::from_chains(all_lines.len(), &chains);
-
-                if !quiet {
-                    eprintln!("Generated {} lines -> {} chains ({:.0}% reduction) in {:?}",
-                        all_lines.len(), chains.len(), stats.reduction_ratio * 100.0, elapsed);
-                    if sketchy_config.is_some() {
-                        eprintln!("Applied sketchy effect");
-                    }
+                // Simple mode: single pattern for all polygons
+                let mut all_lines: Vec<Line> = Vec::new();
+                for &idx in &order {
+                    let polygon = &polygons[idx];
+                    let lines = generate_pattern(pattern, polygon, spacing, angle);
+                    let lines = post_process(lines, polygon);
+                    all_lines.extend(lines);
                 }
+                let all_lines = apply_sketchy(all_lines);
 
-                chains_to_svg(&chains, &svg_content)
+                let elapsed = start.elapsed();
+
+                if raw_output {
+                    // --raw: output individual <line> elements
+                    if !quiet {
+                        eprintln!("Generated {} lines in {:?}", all_lines.len(), elapsed);
+                        if sketchy_config.is_some() {
+                            eprintln!("Applied sketchy effect");
+                        }
+                    }
+                    lines_to_svg(&all_lines, &svg_content)
+                } else {
+                    // Default: chain lines into polylines for smaller output
+                    let chain_config_inner = ChainConfig::with_tolerance(chain_tolerance);
+                    let chains = chain_lines(&all_lines, &chain_config_inner);
+                    let stats = ChainStats::from_chains(all_lines.len(), &chains);
+
+                    if !quiet {
+                        eprintln!("Generated {} lines -> {} chains ({:.0}% reduction) in {:?}",
+                            all_lines.len(), chains.len(), stats.reduction_ratio * 100.0, elapsed);
+                        if sketchy_config.is_some() {
+                            eprintln!("Applied sketchy effect");
+                        }
+                    }
+
+                    chains_to_svg(&chains, &svg_content)
+                }
             }
         }
     };
@@ -433,6 +593,8 @@ fn print_usage() {
     eprintln!("  -p, --pattern <name>    Pattern name (default: lines)");
     eprintln!("  -s, --spacing <n>       Line spacing (default: 2.5)");
     eprintln!("  -a, --angle <deg>       Pattern angle (default: 45)");
+    eprintln!("  --config <file>         Per-group pattern config (YAML)");
+    eprintln!("  --color <hex>           Override stroke color for all patterns");
     eprintln!("  --json                  Output as JSON instead of SVG");
     eprintln!("  --grouped               Group lines by polygon (JSON only)");
     eprintln!("  --no-optimize           Disable travel path optimization");
@@ -445,6 +607,20 @@ fn print_usage() {
     eprintln!("  --no-double-stroke      Disable double-stroke in sketchy mode");
     eprintln!("  --seed <n>              Random seed for sketchy effect");
     eprintln!("  -q, --quiet             Suppress info messages (for piping)");
+    eprintln!();
+    eprintln!("Config file format (YAML):");
+    eprintln!("  defaults:");
+    eprintln!("    pattern: lines");
+    eprintln!("    spacing: 2.0");
+    eprintln!("    angle: 45");
+    eprintln!("    color: \"#666666\"");
+    eprintln!("  groups:");
+    eprintln!("    towns_vt:");
+    eprintln!("      pattern: concentric");
+    eprintln!("      color: \"#2E7D32\"");
+    eprintln!("    water:");
+    eprintln!("      pattern: wiggle");
+    eprintln!("      color: \"#0288D1\"");
     eprintln!();
     eprintln!("Use '-' as input to read from stdin");
 }
