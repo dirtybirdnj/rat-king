@@ -71,7 +71,7 @@ pub fn generate_wave_fill(
 
     // Extract contour lines using marching squares
     let mut all_lines = Vec::new();
-    let num_contours = 8; // Number of contour levels
+    let num_contours = 5; // Number of contour levels (reduced for cleaner preview)
 
     for level in 0..num_contours {
         let threshold = -2.5 + level as f64 * 5.0 / num_contours as f64;

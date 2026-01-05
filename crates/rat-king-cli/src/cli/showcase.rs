@@ -35,7 +35,7 @@ const DENSITY_LEVELS: &[f64] = &[
 /// Pattern-specific notes for edge cases and special features.
 fn get_pattern_notes(pattern: &Pattern) -> &'static str {
     match pattern {
-        Pattern::Lines | Pattern::Crosshatch | Pattern::Diagonal =>
+        Pattern::Lines | Pattern::Crosshatch =>
             "angle: rotation | simple, fast",
         Pattern::Zigzag =>
             "amplitude varies | sharp corners",

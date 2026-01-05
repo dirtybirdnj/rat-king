@@ -35,8 +35,8 @@ use rat_king::{extract_polygons_from_svg, Line, Pattern, Polygon};
 
 // Import CLI commands
 use cli::{
-    cmd_fill, cmd_benchmark, cmd_analyze, cmd_swatches, cmd_banner, cmd_showcase, generate_pattern,
-    AnalysisResult, HarnessResult, VisualHarnessReport,
+    cmd_fill, cmd_benchmark, cmd_analyze, cmd_swatches, cmd_banner, cmd_showcase, cmd_recipe,
+    generate_pattern, AnalysisResult, HarnessResult, VisualHarnessReport,
     analyze_pattern_vs_solid, generate_diff_image,
 };
 
@@ -960,6 +960,10 @@ fn main() {
                 cmd_showcase(&args[2..]);
                 return;
             }
+            "recipe" => {
+                cmd_recipe(&args[2..]);
+                return;
+            }
             "help" | "--help" | "-h" => {
                 print_usage(&args[0]);
                 return;
@@ -1356,6 +1360,7 @@ fn print_usage(prog: &str) {
     eprintln!("  {} analyze <svg> [--json] [query options]", prog);
     eprintln!("  {} swatches [-o output.svg] [options]", prog);
     eprintln!("  {} showcase [-o dir] [-p pattern] [options]", prog);
+    eprintln!("  {} recipe <recipe.yaml> [-o output.svg]", prog);
     eprintln!("  {} patterns", prog);
     eprintln!();
     eprintln!("Fill options:");
@@ -1408,6 +1413,10 @@ fn print_usage(prog: &str) {
     eprintln!("  -c, --combined          All patterns per density level");
     eprintln!("  --png                   Also generate PNG output");
     eprintln!("  --system-font           Use system fonts (default: Hershey single-line)");
+    eprintln!();
+    eprintln!("Recipe options:");
+    eprintln!("  -o, --output <file>     Output SVG file (default: output.svg)");
+    eprintln!("  --example               Print an example recipe YAML");
     eprintln!();
     eprintln!("Stdin support:");
     eprintln!("  Use '-' as input file to read SVG from stdin:");

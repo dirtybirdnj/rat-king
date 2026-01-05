@@ -27,7 +27,6 @@ mod stipple;
 mod peano;
 mod meander;
 mod sierpinski;
-mod diagonal;
 mod herringbone;
 mod stripe;
 mod tessellation;
@@ -61,7 +60,6 @@ pub use stipple::generate_stipple_fill;
 pub use peano::generate_peano_fill;
 pub use meander::generate_meander_fill;
 pub use sierpinski::generate_sierpinski_fill;
-pub use diagonal::generate_diagonal_fill;
 pub use herringbone::generate_herringbone_fill;
 pub use stripe::{generate_stripe_fill, generate_stripe_fill_configured, StripeConfig};
 pub use tessellation::{
@@ -127,7 +125,6 @@ pub enum Pattern {
     Stipple,
     Peano,
     Sierpinski,
-    Diagonal,
     Herringbone,
     Stripe,
     Tessellation,
@@ -140,45 +137,59 @@ pub enum Pattern {
 }
 
 impl Pattern {
-    /// Get all available patterns.
+    /// Get all available patterns, sorted by rating (5 stars first).
     pub fn all() -> &'static [Pattern] {
         &[
+            // ★★★★★ 5 stars: Dependable, proven patterns
             Pattern::Lines,
             Pattern::Crosshatch,
             Pattern::Zigzag,
             Pattern::Wiggle,
             Pattern::Spiral,
-            Pattern::Fermat,
             Pattern::Concentric,
-            Pattern::Radial,
             Pattern::Honeycomb,
-            Pattern::Crossspiral,
-            Pattern::Hilbert,
-            Pattern::Guilloche,
-            Pattern::Lissajous,
-            Pattern::Meander,
-            Pattern::Rose,
-            Pattern::Phyllotaxis,
-            Pattern::Scribble,
-            Pattern::Gyroid,
-            Pattern::Pentagon15,
-            Pattern::Pentagon14,
             Pattern::Brick,
             Pattern::Truchet,
-            Pattern::Stipple,
-            Pattern::Peano,
-            Pattern::Sierpinski,
-            Pattern::Diagonal,
-            Pattern::Herringbone,
             Pattern::Stripe,
-            Pattern::Tessellation,
-            Pattern::Harmonograph,
-            Pattern::Flowfield,
-            Pattern::Voronoi,
             Pattern::Gosper,
-            Pattern::Wave,
+            Pattern::Hilbert,
+            Pattern::Peano,
+            Pattern::Meander,
+            // ★★★★☆ 4 stars: Solid patterns with minor quirks
+            Pattern::Fermat,
+            Pattern::Radial,
+            Pattern::Stipple,
+            Pattern::Herringbone,
             Pattern::Sunburst,
+            Pattern::Voronoi,
+            Pattern::Flowfield,
+            Pattern::Wave,
+            // ★★★☆☆ 3 stars: Working patterns with some limitations
+            Pattern::Crossspiral,
+            Pattern::Guilloche,
+            Pattern::Lissajous,
+            Pattern::Rose,
+            Pattern::Phyllotaxis,
+            Pattern::Gyroid,
+            Pattern::Sierpinski,
+            Pattern::Tessellation,
+            // ★★☆☆☆ 2 stars: Experimental or quirky patterns
+            Pattern::Scribble,
+            Pattern::Pentagon15,
+            Pattern::Pentagon14,
+            Pattern::Harmonograph,
         ]
+    }
+
+    /// Get patterns filtered by minimum rating.
+    ///
+    /// Returns only patterns with rating >= min_rating.
+    pub fn with_min_rating(min_rating: u8) -> Vec<Pattern> {
+        Self::all()
+            .iter()
+            .copied()
+            .filter(|p| p.rating() >= min_rating)
+            .collect()
     }
 
     /// Get pattern name as string.
@@ -209,7 +220,6 @@ impl Pattern {
             Pattern::Stipple => "stipple",
             Pattern::Peano => "peano",
             Pattern::Sierpinski => "sierpinski",
-            Pattern::Diagonal => "diagonal",
             Pattern::Herringbone => "herringbone",
             Pattern::Stripe => "stripe",
             Pattern::Tessellation => "tessellation",
@@ -233,7 +243,7 @@ impl Pattern {
     /// Returns (spacing_label, angle_label, description) for UI display.
     pub fn metadata(&self) -> PatternMetadata {
         match self {
-            Pattern::Lines | Pattern::Crosshatch | Pattern::Diagonal =>
+            Pattern::Lines | Pattern::Crosshatch =>
                 PatternMetadata::new("Line Spacing", "Angle", "Parallel lines at angle"),
             Pattern::Zigzag =>
                 PatternMetadata::new("Amplitude", "Angle", "Zigzag waves with amplitude"),
@@ -302,6 +312,35 @@ impl Pattern {
         }
     }
 
+    /// Get the quality/reliability rating for this pattern (1-5 stars).
+    ///
+    /// - 5 stars: Dependable, proven patterns
+    /// - 4 stars: Solid patterns with minor quirks
+    /// - 3 stars: Working patterns with some limitations
+    /// - 2 stars: Experimental or quirky patterns
+    /// - 1 star: Functional but with clear flaws
+    pub fn rating(&self) -> u8 {
+        match self {
+            // 5 stars: Dependable, proven patterns
+            Pattern::Lines | Pattern::Crosshatch | Pattern::Zigzag | Pattern::Wiggle
+            | Pattern::Spiral | Pattern::Concentric | Pattern::Honeycomb | Pattern::Brick
+            | Pattern::Truchet | Pattern::Stripe | Pattern::Gosper
+            | Pattern::Hilbert | Pattern::Peano | Pattern::Meander => 5,
+
+            // 4 stars: Solid patterns with minor quirks
+            Pattern::Fermat | Pattern::Radial | Pattern::Stipple | Pattern::Herringbone
+            | Pattern::Sunburst | Pattern::Voronoi | Pattern::Flowfield | Pattern::Wave => 4,
+
+            // 3 stars: Working patterns with some limitations
+            Pattern::Crossspiral | Pattern::Guilloche | Pattern::Lissajous | Pattern::Rose
+            | Pattern::Phyllotaxis | Pattern::Gyroid | Pattern::Sierpinski | Pattern::Tessellation => 3,
+
+            // 2 stars: Experimental or quirky patterns
+            Pattern::Scribble | Pattern::Pentagon15 | Pattern::Pentagon14
+            | Pattern::Harmonograph => 2,
+        }
+    }
+
     /// Get the spacing multiplier for this pattern.
     ///
     /// Some patterns need the spacing parameter scaled for better default behavior.
@@ -313,7 +352,9 @@ impl Pattern {
             Pattern::Zigzag | Pattern::Wiggle | Pattern::Spiral
             | Pattern::Honeycomb | Pattern::Crossspiral
             | Pattern::Brick | Pattern::Truchet | Pattern::Herringbone | Pattern::Stripe
-            | Pattern::Voronoi | Pattern::Wave | Pattern::Gyroid => 2.0,
+            | Pattern::Gyroid => 2.0,
+            // Larger spacing for cleaner previews
+            Pattern::Voronoi | Pattern::Wave => 3.0,
             _ => 1.0,
         }
     }
@@ -333,7 +374,7 @@ impl Pattern {
             Pattern::Wiggle => generate_wiggle_fill(polygon, spacing, angle, spacing, 0.1),
             Pattern::Spiral => generate_spiral_fill(polygon, spacing, angle),
             Pattern::Fermat => generate_fermat_fill(polygon, effective_spacing, angle),
-            Pattern::Concentric => generate_concentric_fill(polygon, spacing, true),
+            Pattern::Concentric => generate_concentric_fill(polygon, spacing, false),
             Pattern::Radial => generate_radial_fill(polygon, 10.0, angle),
             Pattern::Honeycomb => generate_honeycomb_fill(polygon, effective_spacing, angle),
             Pattern::Crossspiral => generate_crossspiral_fill(polygon, spacing, angle),
@@ -352,7 +393,6 @@ impl Pattern {
             Pattern::Stipple => generate_stipple_fill(polygon, spacing, angle),
             Pattern::Peano => generate_peano_fill(polygon, spacing, angle),
             Pattern::Sierpinski => generate_sierpinski_fill(polygon, spacing, angle),
-            Pattern::Diagonal => generate_diagonal_fill(polygon, spacing, angle),
             Pattern::Herringbone => generate_herringbone_fill(polygon, effective_spacing, angle),
             Pattern::Stripe => generate_stripe_fill(polygon, effective_spacing, angle),
             Pattern::Tessellation => generate_tessellation_fill(polygon, spacing, angle),
@@ -393,7 +433,6 @@ impl Pattern {
             "stipple" | "dots" => Some(Pattern::Stipple),
             "peano" => Some(Pattern::Peano),
             "sierpinski" | "arrowhead" => Some(Pattern::Sierpinski),
-            "diagonal" => Some(Pattern::Diagonal),
             "herringbone" | "chevron" => Some(Pattern::Herringbone),
             "stripe" | "stripes" | "bands" => Some(Pattern::Stripe),
             "tessellation" | "triangulate" | "triangles" => Some(Pattern::Tessellation),

@@ -82,7 +82,7 @@ fn trace_streamline(
 ) -> Vec<Line> {
     let mut lines = Vec::new();
     let step_size = spacing * 0.5;
-    let max_steps = 100;
+    let max_steps = 50; // Reduced for cleaner preview
 
     // Trace in both directions from seed
     for direction in [-1.0, 1.0] {

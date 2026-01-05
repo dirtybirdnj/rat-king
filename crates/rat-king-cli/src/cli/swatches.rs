@@ -1,24 +1,34 @@
 //! Generate pattern swatch sheets for documentation and reference.
 //!
 //! Creates a grid of swatches showing all available patterns
-//! with labels below each swatch. Fits on 8.5"×11" letter paper.
+//! with labels below each swatch. Supports SVG and HTML output formats.
 
 use std::fs;
 
 use rat_king::{Pattern, Point, Polygon};
+
+/// Output format for swatches
+#[derive(Clone, Copy, PartialEq)]
+enum OutputFormat {
+    Svg,
+    Html,
+}
 
 /// Page size constants (8.5" × 11" letter)
 const PAGE_WIDTH: f64 = 8.5 * 72.0;  // 612 pts
 const PAGE_HEIGHT: f64 = 11.0 * 72.0; // 792 pts
 
 /// Swatch configuration for 6×6 grid on letter paper
-const SWATCH_SIZE: f64 = 90.0; // 1.25 inches = 90 pts
+const SWATCH_SIZE: f64 = 80.0; // Slightly smaller to fit headers
 const LABEL_HEIGHT: f64 = 12.0; // Space for text below swatch
 const GUTTER: f64 = 6.0; // Space between swatches
 const MARGIN: f64 = 18.0; // Page margins (0.25")
+const HEADER_HEIGHT: f64 = 20.0; // Height for rating headers
+const DIVIDER_SPACING: f64 = 8.0; // Space around horizontal rules
 
 const COLUMNS: usize = 6;
-const ROWS: usize = 6;
+#[allow(dead_code)]
+const ROWS: usize = 6; // Max rows per page (used for reference)
 
 const DEFAULT_SPACING: f64 = 4.0;
 const DEFAULT_ANGLE: f64 = 45.0;
@@ -68,6 +78,7 @@ pub fn cmd_swatches(args: &[String]) {
     let mut png_output: Option<String> = None;
     let mut png_scale = 2.0_f64; // 2x for decent resolution
     let mut colorful = false;
+    let mut format = OutputFormat::Svg;
 
     // Parse arguments
     let mut i = 0;
@@ -124,6 +135,12 @@ pub fn cmd_swatches(args: &[String]) {
             "--colorful" | "-c" => {
                 colorful = true;
             }
+            "--html" => {
+                format = OutputFormat::Html;
+                if output_path == "pattern_swatches.svg" {
+                    output_path = "pattern_swatches.html".to_string();
+                }
+            }
             "-h" | "--help" => {
                 print_usage();
                 return;
@@ -133,15 +150,199 @@ pub fn cmd_swatches(args: &[String]) {
         i += 1;
     }
 
+    eprintln!("Generating pattern swatches ({})...", if format == OutputFormat::Html { "HTML" } else { "SVG" });
+    eprintln!("  Swatch size: {:.2}\" × {:.2}\"", SWATCH_SIZE / 72.0, SWATCH_SIZE / 72.0);
+    eprintln!("  Spacing: {}, Angle: {}°", spacing, angle);
+
+    let content = match format {
+        OutputFormat::Html => generate_html_swatches(spacing, angle, stroke_width, &stroke_color, colorful),
+        OutputFormat::Svg => generate_svg_swatches(spacing, angle, stroke_width, &stroke_color, &fill_color, colorful),
+    };
+
+    fs::write(&output_path, &content).expect("Failed to write output");
+    eprintln!("Wrote: {}", output_path);
+
+    // Generate PNG if requested (SVG only)
+    if let Some(png_path) = png_output {
+        if format == OutputFormat::Svg {
+            generate_png(&content, &png_path, png_scale, PAGE_WIDTH, PAGE_HEIGHT);
+        } else {
+            eprintln!("Note: PNG output not supported for HTML format");
+        }
+    }
+}
+
+/// Generate HTML swatches with embedded SVG.
+fn generate_html_swatches(
+    spacing: f64,
+    angle: f64,
+    stroke_width: f64,
+    stroke_color: &str,
+    colorful: bool,
+) -> String {
+    let patterns = Pattern::all();
+    let mut html = String::new();
+
+    // HTML header with CSS
+    html.push_str(r##"<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pattern Swatches - rat-king</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: white;
+            padding: 0.5in;
+            max-width: 8.5in;
+            margin: 0 auto;
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 0.5em;
+            color: #333;
+        }
+        .rating-group {
+            margin-bottom: 1.5em;
+            page-break-inside: avoid;
+        }
+        .rating-header {
+            font-size: 16px;
+            font-weight: bold;
+            color: #666;
+            margin-bottom: 0.5em;
+            padding-bottom: 0.25em;
+            border-bottom: 1px solid #ccc;
+        }
+        .swatches {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 8px;
+        }
+        .swatch {
+            text-align: center;
+        }
+        .swatch svg {
+            width: 100%;
+            aspect-ratio: 1;
+            border: 1px solid #ccc;
+            background: white;
+        }
+        .swatch-label {
+            font-size: 10px;
+            color: #333;
+            margin-top: 4px;
+        }
+        @media print {
+            body { padding: 0.25in; }
+            .rating-group { page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+    <h1>rat-king Pattern Swatches</h1>
+"##);
+
+    // Group patterns by rating
+    let mut current_rating: Option<u8> = None;
+
+    for (idx, pattern) in patterns.iter().enumerate() {
+        let rating = pattern.rating();
+
+        // Start new rating group if needed
+        if current_rating != Some(rating) {
+            // Close previous group
+            if current_rating.is_some() {
+                html.push_str("    </div>\n</div>\n\n");
+            }
+
+            // Open new group
+            let stars = render_stars(rating);
+            html.push_str(&format!(
+                r##"<div class="rating-group">
+    <div class="rating-header">{}</div>
+    <div class="swatches">
+"##,
+                stars
+            ));
+            current_rating = Some(rating);
+        }
+
+        // Generate swatch SVG
+        let swatch_svg = generate_swatch_svg(pattern, spacing, angle, stroke_width, stroke_color, colorful, idx);
+
+        html.push_str(&format!(
+            r##"        <div class="swatch">
+            {}
+            <div class="swatch-label">{}</div>
+        </div>
+"##,
+            swatch_svg, pattern.name()
+        ));
+
+        eprint!(".");
+    }
+
+    // Close last group
+    html.push_str("    </div>\n</div>\n\n");
+
+    html.push_str("</body>\n</html>\n");
+    eprintln!(" done!");
+
+    html
+}
+
+/// Generate a single swatch as inline SVG.
+fn generate_swatch_svg(
+    pattern: &Pattern,
+    spacing: f64,
+    angle: f64,
+    stroke_width: f64,
+    stroke_color: &str,
+    colorful: bool,
+    idx: usize,
+) -> String {
+    let size = SWATCH_SIZE;
+    let square = create_square(0.0, 0.0, size);
+    let lines = pattern.generate(&square, spacing, angle);
+
+    let color = if colorful {
+        COLORS[idx % COLORS.len()]
+    } else {
+        stroke_color
+    };
+
+    let mut svg = format!(
+        r##"<svg viewBox="0 0 {:.0} {:.0}" xmlns="http://www.w3.org/2000/svg">
+            <g stroke="{}" stroke-width="{}" fill="none" stroke-linecap="round">"##,
+        size, size, color, stroke_width
+    );
+
+    for line in &lines {
+        svg.push_str(&format!(
+            r##"<line x1="{:.1}" y1="{:.1}" x2="{:.1}" y2="{:.1}"/>"##,
+            line.x1, line.y1, line.x2, line.y2
+        ));
+    }
+
+    svg.push_str("</g></svg>");
+    svg
+}
+
+/// Generate SVG swatches (original format).
+fn generate_svg_swatches(
+    spacing: f64,
+    angle: f64,
+    stroke_width: f64,
+    stroke_color: &str,
+    fill_color: &str,
+    colorful: bool,
+) -> String {
     // Use fixed 8.5×11" letter page
     let cell_width = SWATCH_SIZE + GUTTER;
     let cell_height = SWATCH_SIZE + LABEL_HEIGHT + GUTTER;
-
-    eprintln!("Generating pattern swatches...");
-    eprintln!("  Page: 8.5\" × 11\" (letter)");
-    eprintln!("  Swatch size: {:.2}\" × {:.2}\"", SWATCH_SIZE / 72.0, SWATCH_SIZE / 72.0);
-    eprintln!("  Grid: {}×{} ({} patterns)", COLUMNS, ROWS, COLUMNS * ROWS);
-    eprintln!("  Spacing: {}, Angle: {}°", spacing, angle);
 
     let patterns = Pattern::all();
     let mut svg_content = String::new();
@@ -164,17 +365,56 @@ pub fn cmd_swatches(args: &[String]) {
         SWATCH_SIZE / 72.0, SWATCH_SIZE / 72.0, patterns.len()
     ));
 
-    // Generate each swatch
-    for (idx, pattern) in patterns.iter().enumerate() {
-        let col = idx % COLUMNS;
-        let row = idx / COLUMNS;
+    // Track position and rating groups
+    let mut current_y = MARGIN;
+    let mut current_rating: Option<u8> = None;
+    let mut col = 0;
 
-        if row >= ROWS {
-            break; // Don't exceed grid
+    // Generate each swatch with rating headers
+    for (idx, pattern) in patterns.iter().enumerate() {
+        let rating = pattern.rating();
+
+        // Check if we need a new rating header
+        if current_rating != Some(rating) {
+            // Add divider line if not the first group
+            if current_rating.is_some() {
+                // Move to next row if we're mid-row
+                if col > 0 {
+                    current_y += cell_height;
+                    col = 0;
+                }
+                current_y += DIVIDER_SPACING;
+
+                // Add horizontal rule
+                svg_content.push_str(&format!(
+                    r##"  <line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}"
+        stroke="#cccccc" stroke-width="1"/>
+"##,
+                    MARGIN, current_y,
+                    PAGE_WIDTH - MARGIN, current_y
+                ));
+                current_y += DIVIDER_SPACING;
+            }
+
+            // Add rating header
+            let stars = render_stars(rating);
+            svg_content.push_str(&format!(
+                r##"  <text x="{:.2}" y="{:.2}"
+        font-family="system-ui, -apple-system, sans-serif"
+        font-size="14"
+        font-weight="bold"
+        fill="#666666">{}</text>
+"##,
+                MARGIN, current_y + HEADER_HEIGHT - 6.0,
+                stars
+            ));
+            current_y += HEADER_HEIGHT;
+            current_rating = Some(rating);
+            col = 0;
         }
 
         let x = MARGIN + (col as f64 * cell_width);
-        let y = MARGIN + (row as f64 * cell_height);
+        let y = current_y;
 
         // Create square polygon for this swatch
         let square = create_square(x, y, SWATCH_SIZE);
@@ -229,20 +469,20 @@ pub fn cmd_swatches(args: &[String]) {
             label_x, label_y, pattern.name()
         ));
 
+        // Advance column, wrap to next row if needed
+        col += 1;
+        if col >= COLUMNS {
+            col = 0;
+            current_y += cell_height;
+        }
+
         eprint!(".");
     }
 
     svg_content.push_str("</svg>\n");
     eprintln!(" done!");
 
-    // Write SVG
-    fs::write(&output_path, &svg_content).expect("Failed to write SVG");
-    eprintln!("Wrote: {}", output_path);
-
-    // Generate PNG if requested
-    if let Some(png_path) = png_output {
-        generate_png(&svg_content, &png_path, png_scale, PAGE_WIDTH, PAGE_HEIGHT);
-    }
+    svg_content
 }
 
 /// Create a square polygon at the given position.
@@ -253,6 +493,13 @@ fn create_square(x: f64, y: f64, size: f64) -> Polygon {
         Point::new(x + size, y + size),
         Point::new(x, y + size),
     ])
+}
+
+/// Render star rating as text (e.g., "★★★★★" for 5 stars).
+fn render_stars(rating: u8) -> String {
+    let filled = "★".repeat(rating as usize);
+    let empty = "☆".repeat(5 - rating as usize);
+    format!("{}{}", filled, empty)
 }
 
 /// Generate PNG from SVG content using resvg.
@@ -302,28 +549,28 @@ pub fn print_usage() {
     eprintln!("    rat-king swatches [OPTIONS]");
     eprintln!();
     eprintln!("OPTIONS:");
-    eprintln!("    -o, --output <file>    Output SVG file (default: pattern_swatches.svg)");
+    eprintln!("    -o, --output <file>    Output file (default: pattern_swatches.svg)");
+    eprintln!("    --html                 Output as HTML (easier for PDF conversion)");
     eprintln!("    -c, --colorful         Use vibrant colors (one per pattern)");
     eprintln!("    --stroke <color>       Line color (default: black)");
     eprintln!("    --fill <color>         Swatch background (default: none/white)");
     eprintln!("    -w, --stroke-width <n> Line width (default: 1.0)");
     eprintln!("    -s, --spacing <n>      Pattern spacing (default: 4.0)");
     eprintln!("    -a, --angle <deg>      Pattern angle (default: 45)");
-    eprintln!("    --png <file>           Also generate PNG output");
+    eprintln!("    --png <file>           Also generate PNG output (SVG only)");
     eprintln!("    --png-scale <n>        PNG scale factor (default: 2.0)");
     eprintln!();
     eprintln!("EXAMPLES:");
-    eprintln!("    # Generate B&W swatch sheet");
-    eprintln!("    rat-king swatches -o swatches_bw.svg");
+    eprintln!("    # Generate B&W SVG swatch sheet");
+    eprintln!("    rat-king swatches -o swatches.svg");
     eprintln!();
-    eprintln!("    # Generate colorful swatch sheet for README");
-    eprintln!("    rat-king swatches --colorful -o swatches_color.svg --png swatches.png");
+    eprintln!("    # Generate HTML swatch sheet (for easy PDF conversion)");
+    eprintln!("    rat-king swatches --html -o swatches.html");
     eprintln!();
-    eprintln!("    # Generate SVG and PNG");
-    eprintln!("    rat-king swatches -o swatches.svg --png swatches.png --png-scale 3");
+    eprintln!("    # Generate colorful swatch sheet");
+    eprintln!("    rat-king swatches --colorful --html -o swatches_color.html");
     eprintln!();
     eprintln!("OUTPUT:");
-    eprintln!("    Creates a {}×{} grid of {:.2}\"×{:.2}\" swatches with pattern labels.",
-        COLUMNS, ROWS, SWATCH_SIZE / 72.0, SWATCH_SIZE / 72.0);
-    eprintln!("    Page size: 8.5\" × 11\" (fits on letter paper)");
+    eprintln!("    Patterns grouped by quality rating (5 stars to 2 stars).");
+    eprintln!("    HTML output can be converted to PDF via browser print.");
 }
