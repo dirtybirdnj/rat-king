@@ -103,7 +103,7 @@ fn fill_command_different_patterns_produce_output() {
     }
 
     // Test a selection of patterns to ensure they all work
-    let patterns = ["lines", "crosshatch", "spiral", "honeycomb", "grid", "diagonal"];
+    let patterns = ["lines", "crosshatch", "spiral", "honeycomb", "meander", "diagonal"];
 
     for pattern in patterns {
         let output = Command::new(binary_path())

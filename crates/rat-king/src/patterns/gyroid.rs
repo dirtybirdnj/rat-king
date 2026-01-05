@@ -9,7 +9,7 @@
 
 use std::f64::consts::PI;
 use crate::geometry::{Line, Polygon};
-use crate::clip::point_in_polygon;
+use crate::clip::clip_lines_to_polygon;
 
 /// Evaluate the gyroid function at a point.
 /// Returns a scalar field value - the zero-contour is the gyroid surface.
@@ -54,13 +54,13 @@ pub fn generate_gyroid_fill(
         let slice_lines = contour_gyroid_slice(
             min_x, min_y, max_x, max_y,
             scale, z, spacing / 3.0,
-            polygon,
         );
 
         lines.extend(slice_lines);
     }
 
-    lines
+    // Clip all lines to polygon boundary
+    clip_lines_to_polygon(&lines, polygon)
 }
 
 /// Generate contour lines for a single z-slice of the gyroid.
@@ -68,7 +68,6 @@ pub fn generate_gyroid_fill(
 fn contour_gyroid_slice(
     min_x: f64, min_y: f64, max_x: f64, max_y: f64,
     scale: f64, z: f64, resolution: f64,
-    polygon: &Polygon,
 ) -> Vec<Line> {
     let mut lines = Vec::new();
 
@@ -150,21 +149,7 @@ fn contour_gyroid_slice(
             };
 
             for &((px1, py1), (px2, py2)) in segments {
-                // Check if segment is inside polygon
-                let mid_x = (px1 + px2) / 2.0;
-                let mid_y = (py1 + py2) / 2.0;
-
-                if !point_in_polygon(mid_x, mid_y, &polygon.outer) {
-                    continue;
-                }
-
-                let in_hole = polygon.holes.iter().any(|h| {
-                    point_in_polygon(mid_x, mid_y, h)
-                });
-
-                if !in_hole {
-                    lines.push(Line::new(px1, py1, px2, py2));
-                }
+                lines.push(Line::new(px1, py1, px2, py2));
             }
         }
     }

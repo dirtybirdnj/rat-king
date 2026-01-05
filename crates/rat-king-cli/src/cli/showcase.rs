@@ -59,6 +59,8 @@ fn get_pattern_notes(pattern: &Pattern) -> &'static str {
             "spirograph-like | high complexity",
         Pattern::Lissajous =>
             "frequency ratio | closed loops",
+        Pattern::Meander =>
+            "serpentine | back-and-forth",
         Pattern::Rose =>
             "petal count | odd/even differ",
         Pattern::Phyllotaxis =>
@@ -71,8 +73,6 @@ fn get_pattern_notes(pattern: &Pattern) -> &'static str {
             "penrose P3 | aperiodic tiling",
         Pattern::Pentagon14 =>
             "cairo tiling | periodic",
-        Pattern::Grid =>
-            "square cells | axis-aligned",
         Pattern::Brick =>
             "running bond | offset rows",
         Pattern::Truchet =>

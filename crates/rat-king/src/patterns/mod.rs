@@ -20,11 +20,12 @@ mod rose;
 mod phyllotaxis;
 mod pentagon15;
 mod pentagon14;
-mod grid;
+// grid removed - redundant with crosshatch
 mod brick;
 mod truchet;
 mod stipple;
 mod peano;
+mod meander;
 mod sierpinski;
 mod diagonal;
 mod herringbone;
@@ -53,11 +54,12 @@ pub use rose::generate_rose_fill;
 pub use phyllotaxis::generate_phyllotaxis_fill;
 pub use pentagon15::generate_pentagon15_fill;
 pub use pentagon14::generate_pentagon14_fill;
-pub use grid::generate_grid_fill;
+// grid removed - redundant with crosshatch
 pub use brick::generate_brick_fill;
 pub use truchet::generate_truchet_fill;
 pub use stipple::generate_stipple_fill;
 pub use peano::generate_peano_fill;
+pub use meander::generate_meander_fill;
 pub use sierpinski::generate_sierpinski_fill;
 pub use diagonal::generate_diagonal_fill;
 pub use herringbone::generate_herringbone_fill;
@@ -113,13 +115,13 @@ pub enum Pattern {
     Hilbert,
     Guilloche,
     Lissajous,
+    Meander,
     Rose,
     Phyllotaxis,
     Scribble,
     Gyroid,
     Pentagon15,
     Pentagon14,
-    Grid,
     Brick,
     Truchet,
     Stipple,
@@ -154,13 +156,13 @@ impl Pattern {
             Pattern::Hilbert,
             Pattern::Guilloche,
             Pattern::Lissajous,
+            Pattern::Meander,
             Pattern::Rose,
             Pattern::Phyllotaxis,
             Pattern::Scribble,
             Pattern::Gyroid,
             Pattern::Pentagon15,
             Pattern::Pentagon14,
-            Pattern::Grid,
             Pattern::Brick,
             Pattern::Truchet,
             Pattern::Stipple,
@@ -195,13 +197,13 @@ impl Pattern {
             Pattern::Hilbert => "hilbert",
             Pattern::Guilloche => "guilloche",
             Pattern::Lissajous => "lissajous",
+            Pattern::Meander => "meander",
             Pattern::Rose => "rose",
             Pattern::Phyllotaxis => "phyllotaxis",
             Pattern::Scribble => "scribble",
             Pattern::Gyroid => "gyroid",
             Pattern::Pentagon15 => "pentagon15",
             Pattern::Pentagon14 => "pentagon14",
-            Pattern::Grid => "grid",
             Pattern::Brick => "brick",
             Pattern::Truchet => "truchet",
             Pattern::Stipple => "stipple",
@@ -255,6 +257,8 @@ impl Pattern {
                 PatternMetadata::new("Complexity", "Phase", "Spirograph-like curves"),
             Pattern::Lissajous =>
                 PatternMetadata::new("Frequency", "Phase", "Lissajous figure curves"),
+            Pattern::Meander =>
+                PatternMetadata::new("Row Spacing", "Angle", "Serpentine back-and-forth"),
             Pattern::Rose =>
                 PatternMetadata::new("Petals", "Rotation", "Rose/rhodonea curves"),
             Pattern::Phyllotaxis =>
@@ -267,8 +271,6 @@ impl Pattern {
                 PatternMetadata::new("Tile Size", "Rotation", "Penrose P3 tiling"),
             Pattern::Pentagon14 =>
                 PatternMetadata::new("Tile Size", "Rotation", "Cairo pentagonal tiling"),
-            Pattern::Grid =>
-                PatternMetadata::new("Cell Size", "Angle", "Square grid pattern"),
             Pattern::Brick =>
                 PatternMetadata::new("Brick Width", "Angle", "Running bond brick"),
             Pattern::Truchet =>
@@ -305,10 +307,13 @@ impl Pattern {
     /// Some patterns need the spacing parameter scaled for better default behavior.
     pub fn spacing_multiplier(&self) -> f64 {
         match self {
-            Pattern::Zigzag | Pattern::Wiggle | Pattern::Spiral | Pattern::Fermat
-            | Pattern::Honeycomb | Pattern::Crossspiral | Pattern::Grid
+            // These patterns need larger spacing to be visible
+            Pattern::Fermat | Pattern::Phyllotaxis | Pattern::Harmonograph
+            | Pattern::Flowfield | Pattern::Sunburst => 4.0,
+            Pattern::Zigzag | Pattern::Wiggle | Pattern::Spiral
+            | Pattern::Honeycomb | Pattern::Crossspiral
             | Pattern::Brick | Pattern::Truchet | Pattern::Herringbone | Pattern::Stripe
-            | Pattern::Voronoi | Pattern::Wave | Pattern::Sunburst => 2.0,
+            | Pattern::Voronoi | Pattern::Wave | Pattern::Gyroid => 2.0,
             _ => 1.0,
         }
     }
@@ -327,7 +332,7 @@ impl Pattern {
             Pattern::Zigzag => generate_zigzag_fill(polygon, spacing, angle, spacing),
             Pattern::Wiggle => generate_wiggle_fill(polygon, spacing, angle, spacing, 0.1),
             Pattern::Spiral => generate_spiral_fill(polygon, spacing, angle),
-            Pattern::Fermat => generate_fermat_fill(polygon, spacing, angle),
+            Pattern::Fermat => generate_fermat_fill(polygon, effective_spacing, angle),
             Pattern::Concentric => generate_concentric_fill(polygon, spacing, true),
             Pattern::Radial => generate_radial_fill(polygon, 10.0, angle),
             Pattern::Honeycomb => generate_honeycomb_fill(polygon, effective_spacing, angle),
@@ -335,13 +340,13 @@ impl Pattern {
             Pattern::Hilbert => generate_hilbert_fill(polygon, spacing, angle),
             Pattern::Guilloche => generate_guilloche_fill(polygon, spacing, angle),
             Pattern::Lissajous => generate_lissajous_fill(polygon, spacing, angle),
+            Pattern::Meander => generate_meander_fill(polygon, spacing, angle),
             Pattern::Rose => generate_rose_fill(polygon, spacing, angle),
-            Pattern::Phyllotaxis => generate_phyllotaxis_fill(polygon, spacing, angle),
+            Pattern::Phyllotaxis => generate_phyllotaxis_fill(polygon, effective_spacing, angle),
             Pattern::Scribble => generate_scribble_fill(polygon, spacing, angle),
-            Pattern::Gyroid => generate_gyroid_fill(polygon, spacing, angle),
+            Pattern::Gyroid => generate_gyroid_fill(polygon, effective_spacing, angle),
             Pattern::Pentagon15 => generate_pentagon15_fill(polygon, spacing * 3.0, angle),
             Pattern::Pentagon14 => generate_pentagon14_fill(polygon, spacing * 3.0, angle),
-            Pattern::Grid => generate_grid_fill(polygon, effective_spacing, angle),
             Pattern::Brick => generate_brick_fill(polygon, effective_spacing, angle),
             Pattern::Truchet => generate_truchet_fill(polygon, effective_spacing, angle),
             Pattern::Stipple => generate_stipple_fill(polygon, spacing, angle),
@@ -351,8 +356,8 @@ impl Pattern {
             Pattern::Herringbone => generate_herringbone_fill(polygon, effective_spacing, angle),
             Pattern::Stripe => generate_stripe_fill(polygon, effective_spacing, angle),
             Pattern::Tessellation => generate_tessellation_fill(polygon, spacing, angle),
-            Pattern::Harmonograph => generate_harmonograph_fill(polygon, spacing, angle),
-            Pattern::Flowfield => generate_flowfield_fill(polygon, spacing, angle),
+            Pattern::Harmonograph => generate_harmonograph_fill(polygon, effective_spacing, angle),
+            Pattern::Flowfield => generate_flowfield_fill(polygon, effective_spacing, angle),
             Pattern::Voronoi => generate_voronoi_fill(polygon, effective_spacing, angle),
             Pattern::Gosper => generate_gosper_fill(polygon, spacing, angle),
             Pattern::Wave => generate_wave_fill(polygon, effective_spacing, angle),
@@ -376,13 +381,13 @@ impl Pattern {
             "hilbert" => Some(Pattern::Hilbert),
             "guilloche" | "spirograph" => Some(Pattern::Guilloche),
             "lissajous" => Some(Pattern::Lissajous),
+            "meander" | "serpentine" | "boustrophedon" => Some(Pattern::Meander),
             "rose" | "rhodonea" => Some(Pattern::Rose),
             "phyllotaxis" | "sunflower" => Some(Pattern::Phyllotaxis),
             "scribble" => Some(Pattern::Scribble),
             "gyroid" => Some(Pattern::Gyroid),
             "pentagon15" | "pent15" => Some(Pattern::Pentagon15),
             "pentagon14" | "pent14" => Some(Pattern::Pentagon14),
-            "grid" => Some(Pattern::Grid),
             "brick" | "running-bond" => Some(Pattern::Brick),
             "truchet" => Some(Pattern::Truchet),
             "stipple" | "dots" => Some(Pattern::Stipple),

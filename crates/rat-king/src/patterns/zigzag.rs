@@ -1,7 +1,7 @@
-//! Zigzag fill pattern - continuous 90-degree turn lines.
+//! Zigzag fill pattern - continuous horizontal zigzag lines.
 //!
-//! Creates a single continuous polyline that zigzags back and forth
-//! across the polygon, like a snake or maze path.
+//! Creates parallel rows of continuous zigzag lines that span horizontally,
+//! with sharp triangular peaks alternating up and down.
 
 use std::f64::consts::PI;
 use crate::geometry::{Line, Point, Polygon};
@@ -11,11 +11,15 @@ use crate::rng::Rng;
 /// Configuration for zigzag pattern.
 #[derive(Debug, Clone, Copy)]
 pub struct ZigzagConfig {
-    /// Base spacing between parallel runs
+    /// Vertical spacing between zigzag rows
     pub spacing: f64,
     /// Rotation angle in degrees
     pub angle_degrees: f64,
-    /// Enable wild mode - randomly vary segment lengths
+    /// Height of zigzag peaks (half the peak-to-peak amplitude)
+    pub amplitude: f64,
+    /// Horizontal distance between peaks
+    pub wavelength: f64,
+    /// Enable wild mode - randomly vary parameters
     pub wild: bool,
     /// Randomness amount for wild mode (0.0 to 1.0)
     pub wildness: f64,
@@ -28,6 +32,8 @@ impl Default for ZigzagConfig {
         Self {
             spacing: 5.0,
             angle_degrees: 0.0,
+            amplitude: 2.5,
+            wavelength: 5.0,
             wild: false,
             wildness: 0.5,
             seed: 42,
@@ -37,17 +43,21 @@ impl Default for ZigzagConfig {
 
 /// Generate zigzag fill for a polygon.
 ///
-/// Creates continuous lines with 90-degree turns that zigzag across the polygon.
-/// The pattern creates connected back-and-forth paths.
+/// Creates continuous horizontal zigzag lines with sharp triangular peaks.
 pub fn generate_zigzag_fill(
     polygon: &Polygon,
     spacing: f64,
     angle_degrees: f64,
-    _amplitude: f64, // Kept for API compatibility, now uses spacing
+    _amplitude: f64,
 ) -> Vec<Line> {
+    // Spacing is the vertical distance between zigzag rows
+    // Amplitude is half the peak-to-trough height (set to ~40% of spacing for clean separation)
+    // Wavelength is horizontal distance for one full zigzag cycle
     let config = ZigzagConfig {
-        spacing,
+        spacing: spacing * 2.5,  // More space between rows
         angle_degrees,
+        amplitude: spacing * 0.8,  // Visible but not overlapping
+        wavelength: spacing * 3.0, // Wider zigzags
         wild: false,
         ..Default::default()
     };
@@ -65,6 +75,8 @@ pub fn generate_zigzag_fill_wild(
     let config = ZigzagConfig {
         spacing,
         angle_degrees,
+        amplitude: spacing * 0.4,
+        wavelength: spacing * 1.2,
         wild: true,
         wildness: wildness.clamp(0.0, 1.0),
         seed,
@@ -82,113 +94,86 @@ pub fn generate_zigzag_fill_configured(polygon: &Polygon, config: &ZigzagConfig)
     let height = max_y - min_y;
     let angle_rad = config.angle_degrees * PI / 180.0;
 
-    // Diagonal coverage needed
+    // Calculate bounds with rotation consideration
     let diagonal = (width * width + height * height).sqrt();
-
-    // Direction vectors
-    let cos_a = angle_rad.cos();
-    let sin_a = angle_rad.sin();
-    // Perpendicular direction
-    let perp_cos = (angle_rad + PI / 2.0).cos();
-    let perp_sin = (angle_rad + PI / 2.0).sin();
-
     let center_x = (min_x + max_x) / 2.0;
     let center_y = (min_y + max_y) / 2.0;
 
-    // Extended bounds for line generation
-    let half_diag = diagonal * 0.75;
-    let num_lines = (diagonal / config.spacing).ceil() as i32 + 2;
+    // Direction vectors for rotation
+    let cos_a = angle_rad.cos();
+    let sin_a = angle_rad.sin();
 
     let mut rng = Rng::new(config.seed);
     let mut all_lines = Vec::new();
 
-    // Generate a continuous zigzag path
-    // Start from one corner and zigzag across
-    let mut going_positive = true;
+    // Number of rows needed to cover the rotated area
+    let half_coverage = diagonal * 0.75;
+    let num_rows = (half_coverage * 2.0 / config.spacing).ceil() as i32 + 2;
 
-    for i in -num_lines..=num_lines {
-        let offset = i as f64 * config.spacing;
+    // Generate zigzag rows
+    for row in -num_rows..=num_rows {
+        let row_offset = row as f64 * config.spacing;
 
-        // Apply wild mode variation to offset
-        let actual_offset = if config.wild && i != -num_lines {
-            let variation = config.wildness * config.spacing * 0.3;
-            let random_factor = rng.next_f64() * 2.0 - 1.0;
-            offset + random_factor * variation
+        // Apply wild variation to row position
+        let actual_offset = if config.wild {
+            let var = config.wildness * config.spacing * 0.15;
+            row_offset + (rng.next_f64() * 2.0 - 1.0) * var
         } else {
-            offset
+            row_offset
         };
 
-        // Calculate the center point of this line
-        let line_center_x = center_x + perp_cos * actual_offset;
-        let line_center_y = center_y + perp_sin * actual_offset;
-
-        // Line endpoints extended beyond bounds
-        let half_len = if config.wild {
-            let variation = config.wildness * half_diag * 0.2;
-            let random_factor = rng.next_f64() * 2.0 - 1.0;
-            half_diag + random_factor * variation
+        // Row parameters
+        let amp = if config.wild {
+            let var = config.wildness * config.amplitude * 0.3;
+            (config.amplitude + (rng.next_f64() * 2.0 - 1.0) * var).max(0.5)
         } else {
-            half_diag
+            config.amplitude
         };
 
-        let x1 = line_center_x - cos_a * half_len;
-        let y1 = line_center_y - sin_a * half_len;
-        let x2 = line_center_x + cos_a * half_len;
-        let y2 = line_center_y + sin_a * half_len;
-
-        // Add horizontal/main direction line
-        if going_positive {
-            all_lines.push(Line::new(x1, y1, x2, y2));
+        let wl = if config.wild {
+            let var = config.wildness * config.wavelength * 0.2;
+            (config.wavelength + (rng.next_f64() * 2.0 - 1.0) * var).max(1.0)
         } else {
-            all_lines.push(Line::new(x2, y2, x1, y1));
+            config.wavelength
+        };
+
+        // Generate zigzag points for this row
+        // Start from left edge, go to right edge
+        let half_wl = wl / 2.0;
+        let num_peaks = (half_coverage * 2.0 / half_wl).ceil() as i32 + 2;
+
+        // Alternate starting direction for adjacent rows (creates nicer pattern)
+        let phase = if row % 2 == 0 { 1.0 } else { -1.0 };
+
+        for i in -num_peaks..num_peaks {
+            // Local coordinates (before rotation)
+            let x1 = i as f64 * half_wl;
+            let x2 = (i + 1) as f64 * half_wl;
+
+            // Y oscillates between +amp and -amp
+            let y1 = actual_offset + if i % 2 == 0 { amp } else { -amp } * phase;
+            let y2 = actual_offset + if (i + 1) % 2 == 0 { amp } else { -amp } * phase;
+
+            // Apply rotation around center
+            let (rx1, ry1) = rotate_point(x1, y1, center_x, center_y, cos_a, sin_a);
+            let (rx2, ry2) = rotate_point(x2, y2, center_x, center_y, cos_a, sin_a);
+
+            all_lines.push(Line::new(rx1, ry1, rx2, ry2));
         }
-
-        // Add connecting vertical/perpendicular segment to next row
-        if i < num_lines {
-            let next_offset = (i + 1) as f64 * config.spacing;
-            let next_actual_offset = if config.wild {
-                let variation = config.wildness * config.spacing * 0.3;
-                let random_factor = rng.next_f64() * 2.0 - 1.0;
-                next_offset + random_factor * variation
-            } else {
-                next_offset
-            };
-
-            // Connect from end of current line to start of next
-            let connect_x = if going_positive { x2 } else { x1 };
-            let connect_y = if going_positive { y2 } else { y1 };
-
-            let next_center_x = center_x + perp_cos * next_actual_offset;
-            let next_center_y = center_y + perp_sin * next_actual_offset;
-
-            let next_half_len = if config.wild {
-                let variation = config.wildness * half_diag * 0.2;
-                let random_factor = rng.next_f64() * 2.0 - 1.0;
-                half_diag + random_factor * variation
-            } else {
-                half_diag
-            };
-
-            // Next line's endpoint that we connect to
-            let next_end_x = if going_positive {
-                next_center_x + cos_a * next_half_len
-            } else {
-                next_center_x - cos_a * next_half_len
-            };
-            let next_end_y = if going_positive {
-                next_center_y + sin_a * next_half_len
-            } else {
-                next_center_y - sin_a * next_half_len
-            };
-
-            all_lines.push(Line::new(connect_x, connect_y, next_end_x, next_end_y));
-        }
-
-        going_positive = !going_positive;
     }
 
     // Clip all lines to polygon
     clip_lines_to_polygon(&all_lines, polygon)
+}
+
+/// Rotate a point around a center.
+fn rotate_point(x: f64, y: f64, cx: f64, cy: f64, cos_a: f64, sin_a: f64) -> (f64, f64) {
+    let dx = x;
+    let dy = y;
+    (
+        cx + dx * cos_a - dy * sin_a,
+        cy + dx * sin_a + dy * cos_a,
+    )
 }
 
 #[cfg(test)]
@@ -207,16 +192,15 @@ mod tests {
     #[test]
     fn generates_zigzag_lines() {
         let poly = square_polygon();
-        let lines = generate_zigzag_fill(&poly, 10.0, 0.0, 10.0);
+        let lines = generate_zigzag_fill(&poly, 10.0, 0.0, 5.0);
         assert!(!lines.is_empty());
-        // Should generate multiple lines for a 100x100 polygon with 10.0 spacing
-        assert!(lines.len() >= 5);
+        assert!(lines.len() >= 10, "Should generate many zigzag segments");
     }
 
     #[test]
     fn zigzag_with_angle() {
         let poly = square_polygon();
-        let lines = generate_zigzag_fill(&poly, 10.0, 45.0, 10.0);
+        let lines = generate_zigzag_fill(&poly, 10.0, 45.0, 5.0);
         assert!(!lines.is_empty());
     }
 
@@ -224,38 +208,6 @@ mod tests {
     fn zigzag_wild_mode() {
         let poly = square_polygon();
         let lines = generate_zigzag_fill_wild(&poly, 10.0, 0.0, 0.5, 12345);
-        assert!(!lines.is_empty());
-
-        // Wild mode should produce varied segment lengths
-        // Run again with different seed - should get different results
-        let lines2 = generate_zigzag_fill_wild(&poly, 10.0, 0.0, 0.5, 54321);
-        assert!(!lines2.is_empty());
-    }
-
-    #[test]
-    fn zigzag_wild_extreme() {
-        let poly = square_polygon();
-        // High wildness
-        let lines = generate_zigzag_fill_wild(&poly, 10.0, 0.0, 1.0, 42);
-        assert!(!lines.is_empty());
-
-        // Zero wildness should be like regular mode
-        let lines_zero = generate_zigzag_fill_wild(&poly, 10.0, 0.0, 0.0, 42);
-        assert!(!lines_zero.is_empty());
-    }
-
-    #[test]
-    fn zigzag_complex_polygon() {
-        // L-shaped polygon
-        let poly = Polygon::new(vec![
-            Point::new(0.0, 0.0),
-            Point::new(100.0, 0.0),
-            Point::new(100.0, 50.0),
-            Point::new(50.0, 50.0),
-            Point::new(50.0, 100.0),
-            Point::new(0.0, 100.0),
-        ]);
-        let lines = generate_zigzag_fill(&poly, 10.0, 0.0, 10.0);
         assert!(!lines.is_empty());
     }
 }

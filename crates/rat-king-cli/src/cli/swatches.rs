@@ -11,13 +11,13 @@ use rat_king::{Pattern, Point, Polygon};
 const PAGE_WIDTH: f64 = 8.5 * 72.0;  // 612 pts
 const PAGE_HEIGHT: f64 = 11.0 * 72.0; // 792 pts
 
-/// Swatch configuration for 5×6 grid on letter paper
-const SWATCH_SIZE: f64 = 108.0; // 1.5 inches = 108 pts
+/// Swatch configuration for 6×6 grid on letter paper
+const SWATCH_SIZE: f64 = 90.0; // 1.25 inches = 90 pts
 const LABEL_HEIGHT: f64 = 12.0; // Space for text below swatch
 const GUTTER: f64 = 6.0; // Space between swatches
 const MARGIN: f64 = 18.0; // Page margins (0.25")
 
-const COLUMNS: usize = 5;
+const COLUMNS: usize = 6;
 const ROWS: usize = 6;
 
 const DEFAULT_SPACING: f64 = 4.0;
