@@ -1145,6 +1145,7 @@ name = "rat-king"
 version = "0.1.0"
 dependencies = [
  "lyon_geom",
+ "quick-xml",
  "svgtypes 0.16.0",
  "usvg",
 ]

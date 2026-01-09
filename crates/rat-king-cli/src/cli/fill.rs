@@ -477,33 +477,55 @@ pub fn cmd_fill(args: &[String]) {
                 })
             });
 
-            if let Some(ref config) = fill_config {
-                // Config mode: per-group patterns and colors
-                // Group polygons by their group_id
-                let mut groups_map: HashMap<String, Vec<(usize, ResolvedConfig)>> = HashMap::new();
+            // Check if any polygon has data_pattern attribute
+            let has_data_patterns = polygons.iter().any(|p| p.data_pattern.is_some());
+
+            if has_data_patterns || fill_config.is_some() {
+                // Per-polygon or per-group mode
+                // Group polygons by their group_id (for output structure)
+                let mut groups_map: HashMap<String, Vec<usize>> = HashMap::new();
 
                 for &idx in &order {
                     let polygon = &polygons[idx];
                     let group_id = polygon.group_id.clone().unwrap_or_else(|| "_default".to_string());
-                    let resolved = config.get_for_group(polygon.group_id.as_deref());
-                    groups_map.entry(group_id).or_default().push((idx, resolved));
+                    groups_map.entry(group_id).or_default().push(idx);
                 }
 
                 // Generate lines for each group
                 let mut styled_groups: Vec<StyledGroup> = Vec::new();
                 let mut total_lines = 0;
 
-                for (group_id, polygon_configs) in &groups_map {
+                for (group_id, polygon_indices) in &groups_map {
                     let mut group_lines: Vec<Line> = Vec::new();
                     let mut group_color = "#000000".to_string();
 
-                    for (idx, resolved) in polygon_configs {
-                        let polygon = &polygons[*idx];
-                        group_color = resolved.color.clone();
+                    for &idx in polygon_indices {
+                        let polygon = &polygons[idx];
 
-                        // Parse pattern for this group
-                        let group_pattern = Pattern::from_name(&resolved.pattern).unwrap_or(pattern);
-                        let lines = generate_pattern(group_pattern, polygon, resolved.spacing, resolved.angle);
+                        // Priority: data_pattern > config group > command-line pattern
+                        let (poly_pattern, poly_spacing, poly_angle, poly_color) = if let Some(ref pat_name) = polygon.data_pattern {
+                            // Use pattern from data-pattern attribute
+                            let pat = Pattern::from_name(pat_name).unwrap_or(pattern);
+                            // Get spacing/angle/color from config or defaults
+                            if let Some(ref config) = fill_config {
+                                let resolved = config.get_for_group(polygon.group_id.as_deref());
+                                (pat, resolved.spacing, resolved.angle, resolved.color)
+                            } else {
+                                (pat, spacing, angle, "#000000".to_string())
+                            }
+                        } else if let Some(ref config) = fill_config {
+                            // Use config-based pattern
+                            let resolved = config.get_for_group(polygon.group_id.as_deref());
+                            let pat = Pattern::from_name(&resolved.pattern).unwrap_or(pattern);
+                            (pat, resolved.spacing, resolved.angle, resolved.color)
+                        } else {
+                            // Use command-line pattern
+                            (pattern, spacing, angle, "#000000".to_string())
+                        };
+
+                        group_color = poly_color;
+
+                        let lines = generate_pattern(poly_pattern, polygon, poly_spacing, poly_angle);
                         let lines = post_process(lines, polygon);
                         group_lines.extend(lines);
                     }
@@ -525,6 +547,9 @@ pub fn cmd_fill(args: &[String]) {
                 let elapsed = start.elapsed();
                 if !quiet {
                     eprintln!("Generated {} lines in {} groups in {:?}", total_lines, styled_groups.len(), elapsed);
+                    if has_data_patterns {
+                        eprintln!("Using per-polygon data-pattern attributes");
+                    }
                     if sketchy_config.is_some() {
                         eprintln!("Applied sketchy effect");
                     }

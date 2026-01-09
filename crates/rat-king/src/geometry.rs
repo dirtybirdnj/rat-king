@@ -49,6 +49,10 @@ pub struct Polygon {
     pub id: Option<String>,
     /// Optional parent group ID from the SVG (for per-group styling)
     pub group_id: Option<String>,
+    /// Optional pattern name from data-pattern attribute
+    pub data_pattern: Option<String>,
+    /// Optional shade index from data-shade attribute (0-5)
+    pub data_shade: Option<u8>,
 }
 
 // ============================================================================
@@ -127,12 +131,14 @@ impl Polygon {
             holes: Vec::new(), // Empty vec, like []
             id: None,
             group_id: None,
+            data_pattern: None,
+            data_shade: None,
         }
     }
 
     /// Create a polygon with holes.
     pub fn with_holes(outer: Vec<Point>, holes: Vec<Vec<Point>>) -> Self {
-        Self { outer, holes, id: None, group_id: None }
+        Self { outer, holes, id: None, group_id: None, data_pattern: None, data_shade: None }
     }
 
     /// Create a polygon with an ID.
@@ -142,6 +148,8 @@ impl Polygon {
             holes: Vec::new(),
             id,
             group_id: None,
+            data_pattern: None,
+            data_shade: None,
         }
     }
 
@@ -152,6 +160,26 @@ impl Polygon {
             holes: Vec::new(),
             id,
             group_id,
+            data_pattern: None,
+            data_shade: None,
+        }
+    }
+
+    /// Create a polygon with all metadata fields.
+    pub fn with_metadata(
+        outer: Vec<Point>,
+        id: Option<String>,
+        group_id: Option<String>,
+        data_pattern: Option<String>,
+        data_shade: Option<u8>,
+    ) -> Self {
+        Self {
+            outer,
+            holes: Vec::new(),
+            id,
+            group_id,
+            data_pattern,
+            data_shade,
         }
     }
 

@@ -8,10 +8,18 @@
 //! SVG paths contain Bézier curves (cubic and quadratic). These must be
 //! "flattened" into line segments for polygon operations. We use lyon_geom
 //! for accurate curve approximation with a configurable tolerance.
+//!
+//! ## Data Attributes
+//!
+//! Custom data attributes (data-pattern, data-shade) are extracted via
+//! quick-xml pre-parsing since usvg doesn't preserve them.
 
+use std::collections::HashMap;
 use crate::clip::point_in_polygon;
 use crate::geometry::{Point, Polygon};
 use lyon_geom::{CubicBezierSegment, QuadraticBezierSegment, point};
+use quick_xml::events::Event;
+use quick_xml::reader::Reader;
 
 /// Error type for SVG parsing.
 ///
@@ -44,6 +52,84 @@ impl std::fmt::Display for SvgError {
 // Makes our error type work with the standard error trait
 impl std::error::Error for SvgError {}
 
+/// Data attributes extracted from SVG path elements.
+#[derive(Debug, Clone, Default)]
+pub struct PathDataAttrs {
+    pub data_pattern: Option<String>,
+    pub data_shade: Option<u8>,
+}
+
+/// Pre-parse SVG to extract data-* attributes from path elements.
+/// Returns a map from path ID to data attributes.
+/// Also returns a list of (path_d, attrs) for paths without IDs.
+fn extract_data_attributes(svg_content: &str) -> (HashMap<String, PathDataAttrs>, Vec<(String, PathDataAttrs)>) {
+    let mut by_id: HashMap<String, PathDataAttrs> = HashMap::new();
+    let mut by_d: Vec<(String, PathDataAttrs)> = Vec::new();
+
+    let mut reader = Reader::from_str(svg_content);
+    reader.config_mut().trim_text(true);
+
+    let mut buf = Vec::new();
+
+    loop {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Empty(e)) | Ok(Event::Start(e)) => {
+                let name = e.name();
+                let name_str = std::str::from_utf8(name.as_ref()).unwrap_or("");
+
+                if name_str == "path" || name_str == "rect" || name_str == "circle"
+                   || name_str == "ellipse" || name_str == "polygon" || name_str == "polyline" {
+                    let mut id: Option<String> = None;
+                    let mut d: Option<String> = None;
+                    let mut data_pattern: Option<String> = None;
+                    let mut data_shade: Option<u8> = None;
+
+                    for attr in e.attributes().flatten() {
+                        let key = std::str::from_utf8(attr.key.as_ref()).unwrap_or("");
+                        let value = std::str::from_utf8(&attr.value).unwrap_or("");
+
+                        match key {
+                            "id" => id = Some(value.to_string()),
+                            "d" => d = Some(value.to_string()),
+                            "data-pattern" => data_pattern = Some(value.to_string()),
+                            "data-shade" => data_shade = value.parse().ok(),
+                            _ => {}
+                        }
+                    }
+
+                    let attrs = PathDataAttrs { data_pattern, data_shade };
+
+                    // Store by ID if available
+                    if let Some(path_id) = id {
+                        if attrs.data_pattern.is_some() || attrs.data_shade.is_some() {
+                            by_id.insert(path_id, attrs.clone());
+                        }
+                    }
+
+                    // Also store by path data (d attribute) for fallback matching
+                    if let Some(path_d) = d {
+                        if attrs.data_pattern.is_some() || attrs.data_shade.is_some() {
+                            // Store first 100 chars of d as key (enough for matching)
+                            let key = if path_d.len() > 100 {
+                                path_d[..100].to_string()
+                            } else {
+                                path_d
+                            };
+                            by_d.push((key, attrs));
+                        }
+                    }
+                }
+            }
+            Ok(Event::Eof) => break,
+            Err(_) => break,
+            _ => {}
+        }
+        buf.clear();
+    }
+
+    (by_id, by_d)
+}
+
 /// Extract all polygons from an SVG file.
 ///
 /// ## Rust Lesson #21: The ? Operator
@@ -57,6 +143,9 @@ impl std::error::Error for SvgError {}
 /// ```
 /// It "bubbles up" errors automatically!
 pub fn extract_polygons_from_svg(svg_content: &str) -> Result<Vec<Polygon>, SvgError> {
+    // Pre-parse to extract data-* attributes (usvg doesn't preserve them)
+    let (attrs_by_id, attrs_by_d) = extract_data_attributes(svg_content);
+
     // Parse SVG using usvg (resolves CSS, transforms, etc.)
     let options = usvg::Options::default();
     let tree = usvg::Tree::from_str(svg_content, &options)
@@ -66,7 +155,7 @@ pub fn extract_polygons_from_svg(svg_content: &str) -> Result<Vec<Polygon>, SvgE
 
     // Walk the tree and collect paths (root is a Group in usvg 0.45)
     // Pass None as parent_group_id for the root
-    extract_from_group(tree.root(), &mut polygons, None);
+    extract_from_group(tree.root(), &mut polygons, None, &attrs_by_id, &attrs_by_d);
 
     if polygons.is_empty() {
         Err(SvgError::NoPolygons)
@@ -77,7 +166,13 @@ pub fn extract_polygons_from_svg(svg_content: &str) -> Result<Vec<Polygon>, SvgE
 
 /// Recursively extract polygons from a usvg Group.
 /// Tracks the nearest parent group ID for per-group styling support.
-fn extract_from_group(group: &usvg::Group, polygons: &mut Vec<Polygon>, parent_group_id: Option<&str>) {
+fn extract_from_group(
+    group: &usvg::Group,
+    polygons: &mut Vec<Polygon>,
+    parent_group_id: Option<&str>,
+    attrs_by_id: &HashMap<String, PathDataAttrs>,
+    attrs_by_d: &[(String, PathDataAttrs)],
+) {
     // Use this group's ID if it has one, otherwise inherit from parent
     let current_group_id = if group.id().is_empty() {
         parent_group_id
@@ -86,12 +181,18 @@ fn extract_from_group(group: &usvg::Group, polygons: &mut Vec<Polygon>, parent_g
     };
 
     for child in group.children() {
-        extract_from_node(child, polygons, current_group_id);
+        extract_from_node(child, polygons, current_group_id, attrs_by_id, attrs_by_d);
     }
 }
 
 /// Recursively extract polygons from a usvg node.
-fn extract_from_node(node: &usvg::Node, polygons: &mut Vec<Polygon>, parent_group_id: Option<&str>) {
+fn extract_from_node(
+    node: &usvg::Node,
+    polygons: &mut Vec<Polygon>,
+    parent_group_id: Option<&str>,
+    attrs_by_id: &HashMap<String, PathDataAttrs>,
+    attrs_by_d: &[(String, PathDataAttrs)],
+) {
     // ## Rust Lesson #22: Pattern Matching on Enums with Data
     //
     // usvg::Node is an enum with variants that carry different data.
@@ -100,12 +201,21 @@ fn extract_from_node(node: &usvg::Node, polygons: &mut Vec<Polygon>, parent_grou
     match node {
         usvg::Node::Group(group) => {
             // Recurse into groups, passing current group ID
-            extract_from_group(group, polygons, parent_group_id);
+            extract_from_group(group, polygons, parent_group_id, attrs_by_id, attrs_by_d);
         }
         usvg::Node::Path(path) => {
             // Extract all polygons from path data (handles compound paths)
             let group_id = parent_group_id.map(|s| s.to_string());
-            polygons.extend(path_to_polygons(path, group_id));
+
+            // Look up data attributes by path ID
+            let path_id = path.id();
+            let attrs = if !path_id.is_empty() {
+                attrs_by_id.get(path_id).cloned()
+            } else {
+                None
+            };
+
+            polygons.extend(path_to_polygons(path, group_id, attrs));
         }
         // Ignore text, images, etc.
         _ => {}
@@ -125,10 +235,14 @@ const CURVE_TOLERANCE: f32 = 0.1;
 ///
 /// Properly flattens Bézier curves using lyon_geom for accurate polygon boundaries.
 /// Applies the path's absolute transform (including all parent group transforms).
-fn path_to_polygons(path: &usvg::Path, group_id: Option<String>) -> Vec<Polygon> {
+fn path_to_polygons(path: &usvg::Path, group_id: Option<String>, attrs: Option<PathDataAttrs>) -> Vec<Polygon> {
     let data = path.data();
     let id = path.id();
     let transform = path.abs_transform();
+
+    // Extract data attributes
+    let data_pattern = attrs.as_ref().and_then(|a| a.data_pattern.clone());
+    let data_shade = attrs.as_ref().and_then(|a| a.data_shade);
 
     // ## Rust Lesson #23: Iterator Peekable & Adapters
     //
@@ -147,11 +261,17 @@ fn path_to_polygons(path: &usvg::Path, group_id: Option<String>) -> Vec<Polygon>
         Point::new(pt.x as f64, pt.y as f64)
     };
 
-    // Clone group_id for use in closure
+    // Clone for use in closure
     let group_id_for_closure = group_id.clone();
+    let data_pattern_for_closure = data_pattern.clone();
+    let data_shade_for_closure = data_shade;
 
     // Helper to finalize current subpath as a polygon
-    let finalize_subpath = |points: &mut Vec<Point>, subpath_idx: usize, grp_id: &Option<String>| {
+    let finalize_subpath = |points: &mut Vec<Point>,
+                            subpath_idx: usize,
+                            grp_id: &Option<String>,
+                            pat: &Option<String>,
+                            shade: Option<u8>| {
         // Remove duplicate consecutive points that can occur from curve flattening
         if points.len() >= 2 {
             points.dedup_by(|a, b| {
@@ -170,7 +290,13 @@ fn path_to_polygons(path: &usvg::Path, group_id: Option<String>) -> Vec<Polygon>
             } else {
                 Some(format!("{}_{}", id, subpath_idx))
             };
-            let polygon = Polygon::with_id_and_group(std::mem::take(points), polygon_id, grp_id.clone());
+            let polygon = Polygon::with_metadata(
+                std::mem::take(points),
+                polygon_id,
+                grp_id.clone(),
+                pat.clone(),
+                shade,
+            );
             return Some(polygon);
         }
         points.clear();
@@ -182,7 +308,13 @@ fn path_to_polygons(path: &usvg::Path, group_id: Option<String>) -> Vec<Polygon>
             usvg::tiny_skia_path::PathSegment::MoveTo(p) => {
                 // Start of new subpath - finalize previous if any
                 if !points.is_empty() {
-                    if let Some(polygon) = finalize_subpath(&mut points, subpath_index, &group_id_for_closure) {
+                    if let Some(polygon) = finalize_subpath(
+                        &mut points,
+                        subpath_index,
+                        &group_id_for_closure,
+                        &data_pattern_for_closure,
+                        data_shade_for_closure,
+                    ) {
                         polygons.push(polygon);
                     }
                     subpath_index += 1;
@@ -237,7 +369,13 @@ fn path_to_polygons(path: &usvg::Path, group_id: Option<String>) -> Vec<Polygon>
             }
             usvg::tiny_skia_path::PathSegment::Close => {
                 // Path is closed - finalize this subpath
-                if let Some(polygon) = finalize_subpath(&mut points, subpath_index, &group_id_for_closure) {
+                if let Some(polygon) = finalize_subpath(
+                    &mut points,
+                    subpath_index,
+                    &group_id_for_closure,
+                    &data_pattern_for_closure,
+                    data_shade_for_closure,
+                ) {
                     polygons.push(polygon);
                 }
                 subpath_index += 1;
@@ -247,7 +385,13 @@ fn path_to_polygons(path: &usvg::Path, group_id: Option<String>) -> Vec<Polygon>
 
     // Finalize any remaining points (unclosed path)
     if !points.is_empty() {
-        if let Some(polygon) = finalize_subpath(&mut points, subpath_index, &group_id_for_closure) {
+        if let Some(polygon) = finalize_subpath(
+            &mut points,
+            subpath_index,
+            &group_id_for_closure,
+            &data_pattern_for_closure,
+            data_shade_for_closure,
+        ) {
             polygons.push(polygon);
         }
     }
@@ -357,6 +501,8 @@ fn assemble_holes(polygons: Vec<Polygon>) -> Vec<Polygon> {
                 holes,
                 id: polygon.id,
                 group_id: polygon.group_id,
+                data_pattern: polygon.data_pattern,
+                data_shade: polygon.data_shade,
             });
         }
     }
