@@ -59,6 +59,9 @@ pub struct PathDataAttrs {
     pub data_shade: Option<u8>,
     pub data_spacing: Option<f64>,
     pub data_angle: Option<f64>,
+    pub data_color: Option<String>,
+    pub stroke_color: Option<String>,
+    pub stroke_width: Option<f64>,
 }
 
 /// Pre-parse SVG to extract data-* attributes from path elements.
@@ -85,6 +88,9 @@ fn extract_data_attributes(svg_content: &str) -> (HashMap<String, PathDataAttrs>
                     let mut data_shade: Option<u8> = None;
                     let mut data_spacing: Option<f64> = None;
                     let mut data_angle: Option<f64> = None;
+                    let mut data_color: Option<String> = None;
+                    let mut stroke_color: Option<String> = None;
+                    let mut stroke_width: Option<f64> = None;
 
                     for attr in e.attributes().flatten() {
                         let key = std::str::from_utf8(attr.key.as_ref()).unwrap_or("");
@@ -96,15 +102,22 @@ fn extract_data_attributes(svg_content: &str) -> (HashMap<String, PathDataAttrs>
                             "data-shade" => data_shade = value.parse().ok(),
                             "data-spacing" => data_spacing = value.parse().ok(),
                             "data-angle" => data_angle = value.parse().ok(),
+                            "data-color" => data_color = Some(value.to_string()),
+                            "stroke" => stroke_color = Some(value.to_string()),
+                            "stroke-width" => stroke_width = value.parse().ok(),
                             _ => {}
                         }
                     }
 
-                    let attrs = PathDataAttrs { data_pattern, data_shade, data_spacing, data_angle };
+                    let attrs = PathDataAttrs {
+                        data_pattern, data_shade, data_spacing, data_angle,
+                        data_color, stroke_color, stroke_width,
+                    };
 
                     // Store by ID if available
                     let has_attrs = attrs.data_pattern.is_some() || attrs.data_shade.is_some()
-                        || attrs.data_spacing.is_some() || attrs.data_angle.is_some();
+                        || attrs.data_spacing.is_some() || attrs.data_angle.is_some()
+                        || attrs.data_color.is_some() || attrs.stroke_color.is_some();
                     if let Some(path_id) = id {
                         if has_attrs {
                             by_id.insert(path_id, attrs.clone());
@@ -247,6 +260,9 @@ fn path_to_polygons(path: &usvg::Path, group_id: Option<String>, attrs: Option<P
     let data_shade = attrs.as_ref().and_then(|a| a.data_shade);
     let data_spacing = attrs.as_ref().and_then(|a| a.data_spacing);
     let data_angle = attrs.as_ref().and_then(|a| a.data_angle);
+    let data_color = attrs.as_ref().and_then(|a| a.data_color.clone());
+    let stroke_color = attrs.as_ref().and_then(|a| a.stroke_color.clone());
+    let stroke_width = attrs.as_ref().and_then(|a| a.stroke_width);
 
     // ## Rust Lesson #23: Iterator Peekable & Adapters
     //
@@ -271,6 +287,9 @@ fn path_to_polygons(path: &usvg::Path, group_id: Option<String>, attrs: Option<P
     let data_shade_for_closure = data_shade;
     let data_spacing_for_closure = data_spacing;
     let data_angle_for_closure = data_angle;
+    let data_color_for_closure = data_color.clone();
+    let stroke_color_for_closure = stroke_color.clone();
+    let stroke_width_for_closure = stroke_width;
 
     // Helper to finalize current subpath as a polygon
     let finalize_subpath = |points: &mut Vec<Point>,
@@ -279,7 +298,10 @@ fn path_to_polygons(path: &usvg::Path, group_id: Option<String>, attrs: Option<P
                             pat: &Option<String>,
                             shade: Option<u8>,
                             spacing: Option<f64>,
-                            angle: Option<f64>| {
+                            angle: Option<f64>,
+                            color: &Option<String>,
+                            stroke_col: &Option<String>,
+                            stroke_w: Option<f64>| {
         // Remove duplicate consecutive points that can occur from curve flattening
         if points.len() >= 2 {
             points.dedup_by(|a, b| {
@@ -306,6 +328,9 @@ fn path_to_polygons(path: &usvg::Path, group_id: Option<String>, attrs: Option<P
                 shade,
                 spacing,
                 angle,
+                color.clone(),
+                stroke_col.clone(),
+                stroke_w,
             );
             return Some(polygon);
         }
@@ -326,6 +351,9 @@ fn path_to_polygons(path: &usvg::Path, group_id: Option<String>, attrs: Option<P
                         data_shade_for_closure,
                         data_spacing_for_closure,
                         data_angle_for_closure,
+                        &data_color_for_closure,
+                        &stroke_color_for_closure,
+                        stroke_width_for_closure,
                     ) {
                         polygons.push(polygon);
                     }
@@ -389,6 +417,9 @@ fn path_to_polygons(path: &usvg::Path, group_id: Option<String>, attrs: Option<P
                     data_shade_for_closure,
                     data_spacing_for_closure,
                     data_angle_for_closure,
+                    &data_color_for_closure,
+                    &stroke_color_for_closure,
+                    stroke_width_for_closure,
                 ) {
                     polygons.push(polygon);
                 }
@@ -407,6 +438,9 @@ fn path_to_polygons(path: &usvg::Path, group_id: Option<String>, attrs: Option<P
             data_shade_for_closure,
             data_spacing_for_closure,
             data_angle_for_closure,
+            &data_color_for_closure,
+            &stroke_color_for_closure,
+            stroke_width_for_closure,
         ) {
             polygons.push(polygon);
         }
@@ -521,6 +555,9 @@ fn assemble_holes(polygons: Vec<Polygon>) -> Vec<Polygon> {
                 data_shade: polygon.data_shade,
                 data_spacing: polygon.data_spacing,
                 data_angle: polygon.data_angle,
+                data_color: polygon.data_color,
+                stroke_color: polygon.stroke_color,
+                stroke_width: polygon.stroke_width,
             });
         }
     }

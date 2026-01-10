@@ -57,6 +57,12 @@ pub struct Polygon {
     pub data_spacing: Option<f64>,
     /// Optional angle from data-angle attribute (degrees)
     pub data_angle: Option<f64>,
+    /// Optional color from data-color attribute
+    pub data_color: Option<String>,
+    /// Original stroke color from the SVG element
+    pub stroke_color: Option<String>,
+    /// Original stroke width from the SVG element
+    pub stroke_width: Option<f64>,
 }
 
 // ============================================================================
@@ -132,19 +138,27 @@ impl Polygon {
     pub fn new(outer: Vec<Point>) -> Self {
         Self {
             outer,
-            holes: Vec::new(), // Empty vec, like []
+            holes: Vec::new(),
             id: None,
             group_id: None,
             data_pattern: None,
             data_shade: None,
             data_spacing: None,
             data_angle: None,
+            data_color: None,
+            stroke_color: None,
+            stroke_width: None,
         }
     }
 
     /// Create a polygon with holes.
     pub fn with_holes(outer: Vec<Point>, holes: Vec<Vec<Point>>) -> Self {
-        Self { outer, holes, id: None, group_id: None, data_pattern: None, data_shade: None, data_spacing: None, data_angle: None }
+        Self {
+            outer, holes,
+            id: None, group_id: None,
+            data_pattern: None, data_shade: None, data_spacing: None, data_angle: None,
+            data_color: None, stroke_color: None, stroke_width: None,
+        }
     }
 
     /// Create a polygon with an ID.
@@ -158,6 +172,9 @@ impl Polygon {
             data_shade: None,
             data_spacing: None,
             data_angle: None,
+            data_color: None,
+            stroke_color: None,
+            stroke_width: None,
         }
     }
 
@@ -172,6 +189,9 @@ impl Polygon {
             data_shade: None,
             data_spacing: None,
             data_angle: None,
+            data_color: None,
+            stroke_color: None,
+            stroke_width: None,
         }
     }
 
@@ -184,6 +204,9 @@ impl Polygon {
         data_shade: Option<u8>,
         data_spacing: Option<f64>,
         data_angle: Option<f64>,
+        data_color: Option<String>,
+        stroke_color: Option<String>,
+        stroke_width: Option<f64>,
     ) -> Self {
         Self {
             outer,
@@ -194,6 +217,9 @@ impl Polygon {
             data_shade,
             data_spacing,
             data_angle,
+            data_color,
+            stroke_color,
+            stroke_width,
         }
     }
 

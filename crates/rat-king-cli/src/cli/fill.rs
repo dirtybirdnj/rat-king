@@ -14,7 +14,11 @@ use rat_king::{
     SketchyConfig, sketchify_lines, polygon_to_lines,
 };
 
-use super::common::{OutputFormat, generate_pattern, lines_to_svg, chains_to_svg, grouped_chains_to_svg, StyledGroup};
+use super::common::{
+    OutputFormat, generate_pattern, lines_to_svg, chains_to_svg,
+    grouped_chains_to_svg, grouped_chains_with_boundaries_to_svg,
+    StyledGroup, Boundary,
+};
 
 /// A line in JSON output format.
 #[derive(Serialize)]
@@ -164,6 +168,7 @@ pub fn cmd_fill(args: &[String]) {
     let mut quiet = false;  // --quiet: suppress info messages
     let mut config_path: Option<&str> = None;  // --config: per-group pattern config
     let mut color_override: Option<&str> = None;  // --color: simple color override
+    let mut preserve_boundaries = false;  // --preserve-boundaries: include original polygon boundaries
 
     let mut i = 0;
     while i < args.len() {
@@ -300,6 +305,9 @@ pub fn cmd_fill(args: &[String]) {
                 if i < args.len() {
                     color_override = Some(&args[i]);
                 }
+            }
+            "--preserve-boundaries" | "--boundaries" => {
+                preserve_boundaries = true;
             }
             "-h" | "--help" => {
                 print_usage();
@@ -520,7 +528,11 @@ pub fn cmd_fill(args: &[String]) {
                             .unwrap_or(base_pattern);
                         let poly_spacing = polygon.data_spacing.unwrap_or(base_spacing);
                         let poly_angle = polygon.data_angle.unwrap_or(base_angle);
-                        let poly_color = base_color;
+
+                        // Color priority: data-color > stroke_color > config > default
+                        let poly_color = polygon.data_color.clone()
+                            .or_else(|| polygon.stroke_color.clone())
+                            .unwrap_or(base_color);
 
                         group_color = poly_color;
 
@@ -552,9 +564,33 @@ pub fn cmd_fill(args: &[String]) {
                     if sketchy_config.is_some() {
                         eprintln!("Applied sketchy effect");
                     }
+                    if preserve_boundaries {
+                        eprintln!("Preserving {} polygon boundaries", polygons.len());
+                    }
                 }
 
-                grouped_chains_to_svg(&styled_groups, &svg_content)
+                if preserve_boundaries {
+                    // Generate boundary polylines from original polygons
+                    let boundaries: Vec<Boundary> = polygons.iter().map(|polygon| {
+                        // Build points list from outer boundary (close the polygon)
+                        let mut points = polygon.outer.clone();
+                        if !points.is_empty() && points.first() != points.last() {
+                            points.push(points[0]);
+                        }
+
+                        // Use original stroke color or default
+                        let color = polygon.stroke_color.clone()
+                            .or_else(|| polygon.data_color.clone())
+                            .unwrap_or_else(|| "#000000".to_string());
+                        let stroke_width = polygon.stroke_width.unwrap_or(0.5);
+
+                        Boundary { points, color, stroke_width }
+                    }).collect();
+
+                    grouped_chains_with_boundaries_to_svg(&styled_groups, &boundaries, &svg_content)
+                } else {
+                    grouped_chains_to_svg(&styled_groups, &svg_content)
+                }
             } else {
                 // Simple mode: single pattern for all polygons
                 let mut all_lines: Vec<Line> = Vec::new();
@@ -619,6 +655,7 @@ fn print_usage() {
     eprintln!("  -a, --angle <deg>       Pattern angle (default: 45)");
     eprintln!("  --config <file>         Per-group pattern config (YAML)");
     eprintln!("  --color <hex>           Override stroke color for all patterns");
+    eprintln!("  --preserve-boundaries   Include original polygon boundaries on top of fills");
     eprintln!("  --json                  Output as JSON instead of SVG");
     eprintln!("  --grouped               Group lines by polygon (JSON only)");
     eprintln!("  --no-optimize           Disable travel path optimization");

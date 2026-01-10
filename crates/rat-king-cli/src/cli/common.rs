@@ -82,6 +82,13 @@ pub struct StyledGroup {
     pub color: String,
 }
 
+/// A boundary polyline with styling information.
+pub struct Boundary {
+    pub points: Vec<rat_king::Point>,
+    pub color: String,
+    pub stroke_width: f64,
+}
+
 /// Convert grouped chains to SVG output with per-group colors.
 pub fn grouped_chains_to_svg(groups: &[StyledGroup], original_svg: &str) -> String {
     let viewbox = extract_viewbox(original_svg).unwrap_or_else(|| "0 0 1000 1000".to_string());
@@ -113,6 +120,83 @@ pub fn grouped_chains_to_svg(groups: &[StyledGroup], original_svg: &str) -> Stri
                 .join(" ");
 
             svg.push_str(&format!("  <polyline points=\"{}\"/>\n", points));
+        }
+
+        svg.push_str("</g>\n");
+    }
+
+    svg.push_str("</svg>\n");
+    svg
+}
+
+/// Convert grouped chains to SVG with optional boundaries on top.
+///
+/// Output structure:
+/// - `<g id="fills">` - all fill patterns grouped by color
+/// - `<g id="boundaries">` - original polygon boundaries (if provided)
+pub fn grouped_chains_with_boundaries_to_svg(
+    groups: &[StyledGroup],
+    boundaries: &[Boundary],
+    original_svg: &str,
+) -> String {
+    let viewbox = extract_viewbox(original_svg).unwrap_or_else(|| "0 0 1000 1000".to_string());
+
+    let mut svg = String::new();
+    svg.push_str(&format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="{}">
+<g id="fills">
+"#,
+        viewbox
+    ));
+
+    // Output fills
+    for group in groups {
+        svg.push_str(&format!(
+            r#"<g id="{}" stroke="{}" stroke-width="0.5" fill="none" stroke-linecap="round">
+"#,
+            group.group_id, group.color
+        ));
+
+        for chain in &group.chains {
+            if chain.len() < 2 {
+                continue;
+            }
+
+            let points: String = chain
+                .iter()
+                .map(|p| format!("{:.2},{:.2}", p.x, p.y))
+                .collect::<Vec<_>>()
+                .join(" ");
+
+            svg.push_str(&format!("  <polyline points=\"{}\"/>\n", points));
+        }
+
+        svg.push_str("</g>\n");
+    }
+
+    svg.push_str("</g>\n");
+
+    // Output boundaries on top
+    if !boundaries.is_empty() {
+        svg.push_str("<g id=\"boundaries\" fill=\"none\">\n");
+
+        for boundary in boundaries {
+            if boundary.points.len() < 2 {
+                continue;
+            }
+
+            let points: String = boundary
+                .points
+                .iter()
+                .map(|p| format!("{:.2},{:.2}", p.x, p.y))
+                .collect::<Vec<_>>()
+                .join(" ");
+
+            svg.push_str(&format!(
+                "  <polyline points=\"{}\" stroke=\"{}\" stroke-width=\"{:.2}\"/>\n",
+                points, boundary.color, boundary.stroke_width
+            ));
         }
 
         svg.push_str("</g>\n");
