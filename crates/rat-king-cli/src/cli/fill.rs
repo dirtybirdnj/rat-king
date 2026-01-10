@@ -477,10 +477,12 @@ pub fn cmd_fill(args: &[String]) {
                 })
             });
 
-            // Check if any polygon has data_pattern attribute
-            let has_data_patterns = polygons.iter().any(|p| p.data_pattern.is_some());
+            // Check if any polygon has data-* attributes (pattern, spacing, or angle)
+            let has_data_attrs = polygons.iter().any(|p|
+                p.data_pattern.is_some() || p.data_spacing.is_some() || p.data_angle.is_some()
+            );
 
-            if has_data_patterns || fill_config.is_some() {
+            if has_data_attrs || fill_config.is_some() {
                 // Per-polygon or per-group mode
                 // Group polygons by their group_id (for output structure)
                 let mut groups_map: HashMap<String, Vec<usize>> = HashMap::new();
@@ -502,26 +504,23 @@ pub fn cmd_fill(args: &[String]) {
                     for &idx in polygon_indices {
                         let polygon = &polygons[idx];
 
-                        // Priority: data_pattern > config group > command-line pattern
-                        let (poly_pattern, poly_spacing, poly_angle, poly_color) = if let Some(ref pat_name) = polygon.data_pattern {
-                            // Use pattern from data-pattern attribute
-                            let pat = Pattern::from_name(pat_name).unwrap_or(pattern);
-                            // Get spacing/angle/color from config or defaults
-                            if let Some(ref config) = fill_config {
-                                let resolved = config.get_for_group(polygon.group_id.as_deref());
-                                (pat, resolved.spacing, resolved.angle, resolved.color)
-                            } else {
-                                (pat, spacing, angle, "#000000".to_string())
-                            }
-                        } else if let Some(ref config) = fill_config {
-                            // Use config-based pattern
+                        // Priority for each attribute: data-* > config group > command-line
+                        // Get base config values
+                        let (base_pattern, base_spacing, base_angle, base_color) = if let Some(ref config) = fill_config {
                             let resolved = config.get_for_group(polygon.group_id.as_deref());
                             let pat = Pattern::from_name(&resolved.pattern).unwrap_or(pattern);
                             (pat, resolved.spacing, resolved.angle, resolved.color)
                         } else {
-                            // Use command-line pattern
                             (pattern, spacing, angle, "#000000".to_string())
                         };
+
+                        // Override with data-* attributes if present
+                        let poly_pattern = polygon.data_pattern.as_ref()
+                            .and_then(|name| Pattern::from_name(name))
+                            .unwrap_or(base_pattern);
+                        let poly_spacing = polygon.data_spacing.unwrap_or(base_spacing);
+                        let poly_angle = polygon.data_angle.unwrap_or(base_angle);
+                        let poly_color = base_color;
 
                         group_color = poly_color;
 
@@ -547,8 +546,8 @@ pub fn cmd_fill(args: &[String]) {
                 let elapsed = start.elapsed();
                 if !quiet {
                     eprintln!("Generated {} lines in {} groups in {:?}", total_lines, styled_groups.len(), elapsed);
-                    if has_data_patterns {
-                        eprintln!("Using per-polygon data-pattern attributes");
+                    if has_data_attrs {
+                        eprintln!("Using per-polygon data attributes");
                     }
                     if sketchy_config.is_some() {
                         eprintln!("Applied sketchy effect");

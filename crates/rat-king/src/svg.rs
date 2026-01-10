@@ -57,14 +57,15 @@ impl std::error::Error for SvgError {}
 pub struct PathDataAttrs {
     pub data_pattern: Option<String>,
     pub data_shade: Option<u8>,
+    pub data_spacing: Option<f64>,
+    pub data_angle: Option<f64>,
 }
 
 /// Pre-parse SVG to extract data-* attributes from path elements.
-/// Returns a map from path ID to data attributes.
-/// Also returns a list of (path_d, attrs) for paths without IDs.
-fn extract_data_attributes(svg_content: &str) -> (HashMap<String, PathDataAttrs>, Vec<(String, PathDataAttrs)>) {
+/// Returns a map from path ID to data attributes, plus a list of all path attrs in document order.
+fn extract_data_attributes(svg_content: &str) -> (HashMap<String, PathDataAttrs>, Vec<PathDataAttrs>) {
     let mut by_id: HashMap<String, PathDataAttrs> = HashMap::new();
-    let mut by_d: Vec<(String, PathDataAttrs)> = Vec::new();
+    let mut by_order: Vec<PathDataAttrs> = Vec::new();
 
     let mut reader = Reader::from_str(svg_content);
     reader.config_mut().trim_text(true);
@@ -80,9 +81,10 @@ fn extract_data_attributes(svg_content: &str) -> (HashMap<String, PathDataAttrs>
                 if name_str == "path" || name_str == "rect" || name_str == "circle"
                    || name_str == "ellipse" || name_str == "polygon" || name_str == "polyline" {
                     let mut id: Option<String> = None;
-                    let mut d: Option<String> = None;
                     let mut data_pattern: Option<String> = None;
                     let mut data_shade: Option<u8> = None;
+                    let mut data_spacing: Option<f64> = None;
+                    let mut data_angle: Option<f64> = None;
 
                     for attr in e.attributes().flatten() {
                         let key = std::str::from_utf8(attr.key.as_ref()).unwrap_or("");
@@ -90,34 +92,27 @@ fn extract_data_attributes(svg_content: &str) -> (HashMap<String, PathDataAttrs>
 
                         match key {
                             "id" => id = Some(value.to_string()),
-                            "d" => d = Some(value.to_string()),
                             "data-pattern" => data_pattern = Some(value.to_string()),
                             "data-shade" => data_shade = value.parse().ok(),
+                            "data-spacing" => data_spacing = value.parse().ok(),
+                            "data-angle" => data_angle = value.parse().ok(),
                             _ => {}
                         }
                     }
 
-                    let attrs = PathDataAttrs { data_pattern, data_shade };
+                    let attrs = PathDataAttrs { data_pattern, data_shade, data_spacing, data_angle };
 
                     // Store by ID if available
+                    let has_attrs = attrs.data_pattern.is_some() || attrs.data_shade.is_some()
+                        || attrs.data_spacing.is_some() || attrs.data_angle.is_some();
                     if let Some(path_id) = id {
-                        if attrs.data_pattern.is_some() || attrs.data_shade.is_some() {
+                        if has_attrs {
                             by_id.insert(path_id, attrs.clone());
                         }
                     }
 
-                    // Also store by path data (d attribute) for fallback matching
-                    if let Some(path_d) = d {
-                        if attrs.data_pattern.is_some() || attrs.data_shade.is_some() {
-                            // Store first 100 chars of d as key (enough for matching)
-                            let key = if path_d.len() > 100 {
-                                path_d[..100].to_string()
-                            } else {
-                                path_d
-                            };
-                            by_d.push((key, attrs));
-                        }
-                    }
+                    // Always store in order list (for position-based matching)
+                    by_order.push(attrs);
                 }
             }
             Ok(Event::Eof) => break,
@@ -127,7 +122,7 @@ fn extract_data_attributes(svg_content: &str) -> (HashMap<String, PathDataAttrs>
         buf.clear();
     }
 
-    (by_id, by_d)
+    (by_id, by_order)
 }
 
 /// Extract all polygons from an SVG file.
@@ -144,7 +139,7 @@ fn extract_data_attributes(svg_content: &str) -> (HashMap<String, PathDataAttrs>
 /// It "bubbles up" errors automatically!
 pub fn extract_polygons_from_svg(svg_content: &str) -> Result<Vec<Polygon>, SvgError> {
     // Pre-parse to extract data-* attributes (usvg doesn't preserve them)
-    let (attrs_by_id, attrs_by_d) = extract_data_attributes(svg_content);
+    let (attrs_by_id, attrs_by_order) = extract_data_attributes(svg_content);
 
     // Parse SVG using usvg (resolves CSS, transforms, etc.)
     let options = usvg::Options::default();
@@ -152,10 +147,11 @@ pub fn extract_polygons_from_svg(svg_content: &str) -> Result<Vec<Polygon>, SvgE
         .map_err(|e| SvgError::ParseError(e.to_string()))?;
 
     let mut polygons = Vec::new();
+    let mut path_index = 0usize;
 
     // Walk the tree and collect paths (root is a Group in usvg 0.45)
     // Pass None as parent_group_id for the root
-    extract_from_group(tree.root(), &mut polygons, None, &attrs_by_id, &attrs_by_d);
+    extract_from_group(tree.root(), &mut polygons, None, &attrs_by_id, &attrs_by_order, &mut path_index);
 
     if polygons.is_empty() {
         Err(SvgError::NoPolygons)
@@ -171,7 +167,8 @@ fn extract_from_group(
     polygons: &mut Vec<Polygon>,
     parent_group_id: Option<&str>,
     attrs_by_id: &HashMap<String, PathDataAttrs>,
-    attrs_by_d: &[(String, PathDataAttrs)],
+    attrs_by_order: &[PathDataAttrs],
+    path_index: &mut usize,
 ) {
     // Use this group's ID if it has one, otherwise inherit from parent
     let current_group_id = if group.id().is_empty() {
@@ -181,7 +178,7 @@ fn extract_from_group(
     };
 
     for child in group.children() {
-        extract_from_node(child, polygons, current_group_id, attrs_by_id, attrs_by_d);
+        extract_from_node(child, polygons, current_group_id, attrs_by_id, attrs_by_order, path_index);
     }
 }
 
@@ -191,7 +188,8 @@ fn extract_from_node(
     polygons: &mut Vec<Polygon>,
     parent_group_id: Option<&str>,
     attrs_by_id: &HashMap<String, PathDataAttrs>,
-    attrs_by_d: &[(String, PathDataAttrs)],
+    attrs_by_order: &[PathDataAttrs],
+    path_index: &mut usize,
 ) {
     // ## Rust Lesson #22: Pattern Matching on Enums with Data
     //
@@ -201,19 +199,23 @@ fn extract_from_node(
     match node {
         usvg::Node::Group(group) => {
             // Recurse into groups, passing current group ID
-            extract_from_group(group, polygons, parent_group_id, attrs_by_id, attrs_by_d);
+            extract_from_group(group, polygons, parent_group_id, attrs_by_id, attrs_by_order, path_index);
         }
         usvg::Node::Path(path) => {
             // Extract all polygons from path data (handles compound paths)
             let group_id = parent_group_id.map(|s| s.to_string());
 
-            // Look up data attributes by path ID
+            // Look up data attributes: first try by ID, then fall back to position-based matching
             let path_id = path.id();
             let attrs = if !path_id.is_empty() {
                 attrs_by_id.get(path_id).cloned()
             } else {
-                None
+                // Fall back to position-based matching
+                attrs_by_order.get(*path_index).cloned()
             };
+
+            // Increment path index for position-based matching
+            *path_index += 1;
 
             polygons.extend(path_to_polygons(path, group_id, attrs));
         }
@@ -243,6 +245,8 @@ fn path_to_polygons(path: &usvg::Path, group_id: Option<String>, attrs: Option<P
     // Extract data attributes
     let data_pattern = attrs.as_ref().and_then(|a| a.data_pattern.clone());
     let data_shade = attrs.as_ref().and_then(|a| a.data_shade);
+    let data_spacing = attrs.as_ref().and_then(|a| a.data_spacing);
+    let data_angle = attrs.as_ref().and_then(|a| a.data_angle);
 
     // ## Rust Lesson #23: Iterator Peekable & Adapters
     //
@@ -265,13 +269,17 @@ fn path_to_polygons(path: &usvg::Path, group_id: Option<String>, attrs: Option<P
     let group_id_for_closure = group_id.clone();
     let data_pattern_for_closure = data_pattern.clone();
     let data_shade_for_closure = data_shade;
+    let data_spacing_for_closure = data_spacing;
+    let data_angle_for_closure = data_angle;
 
     // Helper to finalize current subpath as a polygon
     let finalize_subpath = |points: &mut Vec<Point>,
                             subpath_idx: usize,
                             grp_id: &Option<String>,
                             pat: &Option<String>,
-                            shade: Option<u8>| {
+                            shade: Option<u8>,
+                            spacing: Option<f64>,
+                            angle: Option<f64>| {
         // Remove duplicate consecutive points that can occur from curve flattening
         if points.len() >= 2 {
             points.dedup_by(|a, b| {
@@ -296,6 +304,8 @@ fn path_to_polygons(path: &usvg::Path, group_id: Option<String>, attrs: Option<P
                 grp_id.clone(),
                 pat.clone(),
                 shade,
+                spacing,
+                angle,
             );
             return Some(polygon);
         }
@@ -314,6 +324,8 @@ fn path_to_polygons(path: &usvg::Path, group_id: Option<String>, attrs: Option<P
                         &group_id_for_closure,
                         &data_pattern_for_closure,
                         data_shade_for_closure,
+                        data_spacing_for_closure,
+                        data_angle_for_closure,
                     ) {
                         polygons.push(polygon);
                     }
@@ -375,6 +387,8 @@ fn path_to_polygons(path: &usvg::Path, group_id: Option<String>, attrs: Option<P
                     &group_id_for_closure,
                     &data_pattern_for_closure,
                     data_shade_for_closure,
+                    data_spacing_for_closure,
+                    data_angle_for_closure,
                 ) {
                     polygons.push(polygon);
                 }
@@ -391,6 +405,8 @@ fn path_to_polygons(path: &usvg::Path, group_id: Option<String>, attrs: Option<P
             &group_id_for_closure,
             &data_pattern_for_closure,
             data_shade_for_closure,
+            data_spacing_for_closure,
+            data_angle_for_closure,
         ) {
             polygons.push(polygon);
         }
@@ -503,6 +519,8 @@ fn assemble_holes(polygons: Vec<Polygon>) -> Vec<Polygon> {
                 group_id: polygon.group_id,
                 data_pattern: polygon.data_pattern,
                 data_shade: polygon.data_shade,
+                data_spacing: polygon.data_spacing,
+                data_angle: polygon.data_angle,
             });
         }
     }

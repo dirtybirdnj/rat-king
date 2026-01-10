@@ -53,6 +53,10 @@ pub struct Polygon {
     pub data_pattern: Option<String>,
     /// Optional shade index from data-shade attribute (0-5)
     pub data_shade: Option<u8>,
+    /// Optional spacing from data-spacing attribute
+    pub data_spacing: Option<f64>,
+    /// Optional angle from data-angle attribute (degrees)
+    pub data_angle: Option<f64>,
 }
 
 // ============================================================================
@@ -133,12 +137,14 @@ impl Polygon {
             group_id: None,
             data_pattern: None,
             data_shade: None,
+            data_spacing: None,
+            data_angle: None,
         }
     }
 
     /// Create a polygon with holes.
     pub fn with_holes(outer: Vec<Point>, holes: Vec<Vec<Point>>) -> Self {
-        Self { outer, holes, id: None, group_id: None, data_pattern: None, data_shade: None }
+        Self { outer, holes, id: None, group_id: None, data_pattern: None, data_shade: None, data_spacing: None, data_angle: None }
     }
 
     /// Create a polygon with an ID.
@@ -150,6 +156,8 @@ impl Polygon {
             group_id: None,
             data_pattern: None,
             data_shade: None,
+            data_spacing: None,
+            data_angle: None,
         }
     }
 
@@ -162,6 +170,8 @@ impl Polygon {
             group_id,
             data_pattern: None,
             data_shade: None,
+            data_spacing: None,
+            data_angle: None,
         }
     }
 
@@ -172,6 +182,8 @@ impl Polygon {
         group_id: Option<String>,
         data_pattern: Option<String>,
         data_shade: Option<u8>,
+        data_spacing: Option<f64>,
+        data_angle: Option<f64>,
     ) -> Self {
         Self {
             outer,
@@ -180,6 +192,8 @@ impl Polygon {
             group_id,
             data_pattern,
             data_shade,
+            data_spacing,
+            data_angle,
         }
     }
 
