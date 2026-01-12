@@ -169,6 +169,7 @@ pub fn cmd_fill(args: &[String]) {
     let mut config_path: Option<&str> = None;  // --config: per-group pattern config
     let mut color_override: Option<&str> = None;  // --color: simple color override
     let mut preserve_boundaries = false;  // --preserve-boundaries: include original polygon boundaries
+    let mut require_pattern = false;  // --require-pattern: only fill elements with data-pattern attribute
 
     let mut i = 0;
     while i < args.len() {
@@ -309,6 +310,9 @@ pub fn cmd_fill(args: &[String]) {
             "--preserve-boundaries" | "--boundaries" => {
                 preserve_boundaries = true;
             }
+            "--require-pattern" => {
+                require_pattern = true;
+            }
             "-h" | "--help" => {
                 print_usage();
                 return;
@@ -354,15 +358,32 @@ pub fn cmd_fill(args: &[String]) {
             .expect("Failed to read SVG file")
     };
 
-    let polygons = extract_polygons_from_svg(&svg_content)
+    let all_polygons = extract_polygons_from_svg(&svg_content)
         .expect("Failed to parse SVG");
+
+    // Filter polygons if --require-pattern is set
+    let (polygons, skipped_count) = if require_pattern {
+        let total = all_polygons.len();
+        let filtered: Vec<_> = all_polygons.into_iter()
+            .filter(|p| p.data_pattern.is_some())
+            .collect();
+        let skipped = total.saturating_sub(filtered.len());
+        (filtered, skipped)
+    } else {
+        (all_polygons, 0)
+    };
 
     let with_holes: Vec<_> = polygons.iter().filter(|p| !p.holes.is_empty()).collect();
     if !quiet {
-        eprintln!("Loaded {} polygons ({} with holes, {} total holes)",
-            polygons.len(),
-            with_holes.len(),
-            with_holes.iter().map(|p| p.holes.len()).sum::<usize>());
+        if require_pattern && skipped_count > 0 {
+            eprintln!("Loaded {} polygons (skipped {} without data-pattern)",
+                polygons.len(), skipped_count);
+        } else {
+            eprintln!("Loaded {} polygons ({} with holes, {} total holes)",
+                polygons.len(),
+                with_holes.len(),
+                with_holes.iter().map(|p| p.holes.len()).sum::<usize>());
+        }
     }
 
     // Calculate travel optimization
@@ -656,6 +677,7 @@ fn print_usage() {
     eprintln!("  --config <file>         Per-group pattern config (YAML)");
     eprintln!("  --color <hex>           Override stroke color for all patterns");
     eprintln!("  --preserve-boundaries   Include original polygon boundaries on top of fills");
+    eprintln!("  --require-pattern       Only fill elements with data-pattern attribute");
     eprintln!("  --json                  Output as JSON instead of SVG");
     eprintln!("  --grouped               Group lines by polygon (JSON only)");
     eprintln!("  --no-optimize           Disable travel path optimization");
